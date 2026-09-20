@@ -1,13 +1,16 @@
+#ifndef Magnum_ImGuiIntegration_Test_ApplicationTest_hpp
+#define Magnum_ImGuiIntegration_Test_ApplicationTest_hpp
 /*
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 ShaddyAQN <ShaddyAQN@gmail.com>
     Copyright © 2018 Tomáš Skřivan <skrivantomas@seznam.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
     Copyright © 2018 Natesh Narain <nnaraindev@gmail.com>
+    Copyright © 2026 Pablo Escobar <mail@rvrs.in>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -33,16 +36,13 @@
 #include <Magnum/GL/Renderer.h>
 #include <Magnum/ImGuiIntegration/Context.hpp>
 
-#ifdef CORRADE_TARGET_ANDROID
-#include <Magnum/Platform/AndroidApplication.h>
-#elif defined(CORRADE_TARGET_EMSCRIPTEN)
-#include <Magnum/Platform/EmscriptenApplication.h>
-#else
-#include <Magnum/Platform/Sdl2Application.h>
-#endif
-
 namespace Magnum { namespace ImGuiIntegration { namespace Test {
 
+/* Assumes some Application header is included before this file, currently
+   tests mainly just that everything compiles. See Sdl2ApplicationTest.cpp etc.
+   for concrete usage. */
+
+#ifdef MAGNUM_APPLICATION_MAIN
 using namespace Math::Literals;
 
 class ApplicationTest: public Platform::Application {
@@ -55,24 +55,29 @@ class ApplicationTest: public Platform::Application {
 
         #ifndef CORRADE_TARGET_ANDROID
         void keyPressEvent(KeyEvent& event) override{
-            if(_imgui.handleKeyPressEvent(event)) return;
+            if(_imgui.handleKeyPressEvent(event))
+                return;
         }
 
         void keyReleaseEvent(KeyEvent& event) override {
-            if(_imgui.handleKeyReleaseEvent(event)) return;
+            if(_imgui.handleKeyReleaseEvent(event))
+                return;
         }
         #endif
 
         /* Set to 0 to test the deprecated mouse events instead */
         #if 1
         void pointerPressEvent(PointerEvent& event) override {
-            if(_imgui.handlePointerPressEvent(event)) return;
+            if(_imgui.handlePointerPressEvent(event))
+                return;
         }
         void pointerReleaseEvent(PointerEvent& event) override {
-            if(_imgui.handlePointerReleaseEvent(event)) return;
+            if(_imgui.handlePointerReleaseEvent(event))
+                return;
         }
         void pointerMoveEvent(PointerMoveEvent& event) override {
-            if(_imgui.handlePointerMoveEvent(event)) return;
+            if(_imgui.handlePointerMoveEvent(event))
+                return;
         }
         #ifndef CORRADE_TARGET_ANDROID
         void scrollEvent(ScrollEvent& event) override {
@@ -86,13 +91,16 @@ class ApplicationTest: public Platform::Application {
         #else
         CORRADE_IGNORE_DEPRECATED_PUSH
         void mousePressEvent(MouseEvent& event) override {
-            if(_imgui.handleMousePressEvent(event)) return;
+            if(_imgui.handleMousePressEvent(event))
+                return;
         }
         void mouseReleaseEvent(MouseEvent& event) override {
-            if(_imgui.handleMouseReleaseEvent(event)) return;
+            if(_imgui.handleMouseReleaseEvent(event))
+                return;
         }
         void mouseMoveEvent(MouseMoveEvent& event) override {
-            if(_imgui.handleMouseMoveEvent(event)) return;
+            if(_imgui.handleMouseMoveEvent(event))
+                return;
         }
         #ifndef CORRADE_TARGET_ANDROID
         void mouseScrollEvent(MouseScrollEvent& event) override {
@@ -108,7 +116,8 @@ class ApplicationTest: public Platform::Application {
 
         #ifndef CORRADE_TARGET_ANDROID
         void textInputEvent(TextInputEvent& event) override {
-            if(_imgui.handleTextInputEvent(event)) return;
+            if(_imgui.handleTextInputEvent(event))
+                return;
         }
         #endif
 
@@ -124,8 +133,18 @@ ApplicationTest::ApplicationTest(const Arguments& arguments):
         #endif
     }
 {
-    _imgui = ImGuiIntegration::Context(Vector2{windowSize()}/dpiScaling(),
-        windowSize(), framebufferSize());
+    _imgui = ImGuiIntegration::Context(Vector2{windowSize()}/dpiScaling(), *this);
+    #if !defined(CORRADE_TARGET_EMSCRIPTEN) && !defined(CORRADE_TARGET_ANDROID)
+    _imgui.connectApplicationClipboard(*this);
+    #endif
+
+    /* Allow testing keyboard navigation and mouse pos update */
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    #if IMGUI_VERSION_NUM < 19140
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableSetMousePos;
+    #else
+    ImGui::GetIO().ConfigNavMoveSetMousePos = true;
+    #endif
 
     GL::Renderer::enable(GL::Renderer::Feature::Blending);
     GL::Renderer::enable(GL::Renderer::Feature::ScissorTest);
@@ -172,7 +191,8 @@ void ApplicationTest::viewportEvent(ViewportEvent& event) {
     _imgui.relayout(Vector2{event.windowSize()}/event.dpiScaling(),
         event.windowSize(), event.framebufferSize());
 }
+#endif
 
 }}}
 
-MAGNUM_APPLICATION_MAIN(Magnum::ImGuiIntegration::Test::ApplicationTest)
+#endif

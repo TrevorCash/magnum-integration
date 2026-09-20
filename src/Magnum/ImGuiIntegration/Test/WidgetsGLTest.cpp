@@ -2,10 +2,10 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
-    Copyright © 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -28,8 +28,11 @@
 
 #include <Corrade/Utility/System.h>
 #include <Magnum/Magnum.h>
-#include <Magnum/GL/TextureFormat.h>
+#include <Magnum/GL/Framebuffer.h>
 #include <Magnum/GL/OpenGLTester.h>
+#include <Magnum/GL/Renderbuffer.h>
+#include <Magnum/GL/RenderbufferFormat.h>
+#include <Magnum/GL/TextureFormat.h>
 
 #include "Magnum/ImGuiIntegration/Context.hpp"
 #include "Magnum/ImGuiIntegration/Widgets.h"
@@ -44,13 +47,22 @@ namespace Magnum { namespace ImGuiIntegration { namespace Test { namespace {
 struct WidgetsGLTest: GL::OpenGLTester {
     explicit WidgetsGLTest();
 
+    void drawSetup();
+    void drawTeardown();
+
     void image();
     void imageButton();
+
+    private:
+        GL::Renderbuffer _color{NoCreate};
+        GL::Framebuffer _framebuffer{NoCreate};
 };
 
 WidgetsGLTest::WidgetsGLTest() {
     addTests({&WidgetsGLTest::image,
-              &WidgetsGLTest::imageButton});
+              &WidgetsGLTest::imageButton},
+        &WidgetsGLTest::drawSetup,
+        &WidgetsGLTest::drawTeardown);
 
     GL::Renderer::enable(GL::Renderer::Feature::Blending);
     GL::Renderer::setBlendEquation(GL::Renderer::BlendEquation::Add, GL::Renderer::BlendEquation::Add);
@@ -59,6 +71,30 @@ WidgetsGLTest::WidgetsGLTest() {
     GL::Renderer::disable(GL::Renderer::Feature::FaceCulling);
     GL::Renderer::disable(GL::Renderer::Feature::DepthTest);
     GL::Renderer::enable(GL::Renderer::Feature::ScissorTest);
+}
+
+void WidgetsGLTest::drawSetup() {
+    constexpr Vector2i DrawSize{64, 64};
+
+    _color = GL::Renderbuffer{};
+    _color.setStorage(
+        #if !defined(MAGNUM_TARGET_GLES2) || !defined(MAGNUM_TARGET_WEBGL)
+        GL::RenderbufferFormat::RGBA8,
+        #else
+        GL::RenderbufferFormat::RGBA4,
+        #endif
+        DrawSize);
+
+    _framebuffer = GL::Framebuffer{{{}, DrawSize}};
+    _framebuffer
+        .attachRenderbuffer(GL::Framebuffer::ColorAttachment{0}, _color)
+        .clear(GL::FramebufferClear::Color)
+        .bind();
+}
+
+void WidgetsGLTest::drawTeardown() {
+    _framebuffer = GL::Framebuffer{NoCreate};
+    _color = GL::Renderbuffer{NoCreate};
 }
 
 void WidgetsGLTest::image() {
@@ -81,7 +117,15 @@ void WidgetsGLTest::image() {
 
     c.newFrame();
 
-    ImGuiIntegration::image(texture, {100, 100});
+    ImGuiIntegration::image(texture, {100, 100},
+        {{}, Vector2{1.0f}});
+
+    #ifdef MAGNUM_BUILD_DEPRECATED
+    CORRADE_IGNORE_DEPRECATED_PUSH
+    ImGuiIntegration::image(texture, {100, 100},
+        {{}, Vector2{1.0f}}, Color4::yellow(), Color4::blue());
+    CORRADE_IGNORE_DEPRECATED_POP
+    #endif
 
     c.drawFrame();
 

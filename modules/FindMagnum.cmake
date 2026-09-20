@@ -85,8 +85,6 @@
 #  WglContext                   - WGL context
 #  OpenGLTester                 - OpenGLTester class
 #  VulkanTester                 - VulkanTester class
-#  MagnumFont                   - Magnum bitmap font plugin
-#  MagnumFontConverter          - Magnum bitmap font converter plugin
 #  ObjImporter                  - OBJ importer plugin
 #  TgaImageConverter            - TGA image converter plugin
 #  TgaImporter                  - TGA importer plugin
@@ -99,6 +97,12 @@
 #  gl-info                      - magnum-gl-info executable
 #  vk-info                      - magnum-vk-info executable
 #  al-info                      - magnum-al-info executable
+#
+# If Magnum is built with MAGNUM_BUILD_DEPRECATED enabled, these additional
+# plugins are available for backwards compatibility purposes:
+#
+#  MagnumFont                   - Magnum bitmap font plugin
+#  MagnumFontConverter          - Magnum bitmap font converter plugin
 #
 # Example usage with specifying additional components is::
 #
@@ -158,10 +162,8 @@
 # Additionally these variables are defined for internal usage:
 #
 #  MAGNUM_INCLUDE_DIR           - Root include dir (w/o dependencies)
-#  MAGNUM_LIBRARY               - Magnum library (w/o dependencies)
 #  MAGNUM_LIBRARY_DEBUG         - Debug version of Magnum library, if found
 #  MAGNUM_LIBRARY_RELEASE       - Release version of Magnum library, if found
-#  MAGNUM_*_LIBRARY             - Component libraries (w/o dependencies)
 #  MAGNUM_*_LIBRARY_DEBUG       - Debug version of given library, if found
 #  MAGNUM_*_LIBRARY_RELEASE     - Release version of given library, if found
 #  MAGNUM_PLATFORM_JS           - Path to MagnumPlatform.js file
@@ -208,7 +210,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a
@@ -230,24 +232,14 @@
 #   DEALINGS IN THE SOFTWARE.
 #
 
-# CMake policies used by FindMagnum are popped again at the end.
-cmake_policy(PUSH)
-# Prefer GLVND when finding OpenGL. If this causes problems (known to fail with
-# NVidia drivers in Debian Buster, reported on 2019-04-09), users can override
-# this by setting OpenGL_GL_PREFERENCE to LEGACY.
-if(POLICY CMP0072)
-    cmake_policy(SET CMP0072 NEW)
-endif()
-
-# Corrade library dependencies
-set(_MAGNUM_CORRADE_DEPENDENCIES )
+# Corrade library dependencies. At this point they're just looked up, with
+# transitive dependencies including plugins taken into account, the association
+# with a concrete Magnum component is done below.
 foreach(_magnum_component ${Magnum_FIND_COMPONENTS})
-    set(_MAGNUM_${_magnum_component}_CORRADE_DEPENDENCIES )
-
-    # Unrolling the transitive dependencies here so this doesn't need to be
-    # after resolving inter-component dependencies. Listing also all plugins.
-    if(_magnum_component MATCHES "^(Audio|DebugTools|MeshTools|Primitives|SceneTools|ShaderTools|Text|TextureTools|Trade|.+Importer|.+ImageConverter|.+Font|.+ShaderConverter)$")
-        list(APPEND _MAGNUM_${_magnum_component}_CORRADE_DEPENDENCIES PluginManager)
+    # TODO: DebugTools depends on Trade (and thus PluginManager) only
+    #   optionally, take that into account somehow?
+    if(_magnum_component MATCHES "^(Audio|DebugTools|MeshTools|Primitives|SceneTools|ShaderTools|Text|TextureTools|Trade|.+Importer|.+ImageConverter|.+SceneConverter|.+Font|.+FontConverter|.+ShaderConverter)$")
+        list(APPEND _MAGNUM_CORRADE_DEPENDENCIES PluginManager)
     endif()
     if(_magnum_component STREQUAL DebugTools)
         # DebugTools depends on TestSuite optionally, so if it's not there
@@ -256,12 +248,16 @@ foreach(_magnum_component ${Magnum_FIND_COMPONENTS})
         # _component, _COMPONENT and such), so we need to prefix extensively.
         find_package(Corrade QUIET COMPONENTS TestSuite)
         if(Corrade_TestSuite_FOUND)
-            list(APPEND _MAGNUM_${_magnum_component}_CORRADE_DEPENDENCIES TestSuite)
+            list(APPEND _MAGNUM_CORRADE_DEPENDENCIES TestSuite)
         endif()
     endif()
-
-    list(APPEND _MAGNUM_CORRADE_DEPENDENCIES ${_MAGNUM_${_magnum_component}_CORRADE_DEPENDENCIES})
+    if(_magnum_component STREQUAL OpenGLTester)
+        list(APPEND _MAGNUM_CORRADE_DEPENDENCIES TestSuite)
+    endif()
 endforeach()
+if(_MAGNUM_CORRADE_DEPENDENCIES)
+    list(REMOVE_DUPLICATES _MAGNUM_CORRADE_DEPENDENCIES)
+endif()
 find_package(Corrade REQUIRED Utility ${_MAGNUM_CORRADE_DEPENDENCIES})
 
 # Root include dir
@@ -281,6 +277,19 @@ if(NOT MAGNUM_INCLUDE_DIR)
     include(FindPackageHandleStandardArgs)
     find_package_handle_standard_args(Magnum
         REQUIRED_VARS MAGNUM_INCLUDE_DIR _MAGNUM_CONFIGURE_FILE)
+    # FPHSA may continue if find_package(Magnum) wasn't called with REQUIRED,
+    # exit here to avoid another error right at file(READ) below.
+    return()
+endif()
+
+# CMake policies used by FindMagnum are popped again at the end. The PUSH is
+# done only after the return() above to avoid exiting early without a POP.
+cmake_policy(PUSH)
+# Prefer GLVND when finding OpenGL. If this causes problems (known to fail with
+# NVidia drivers in Debian Buster, reported on 2019-04-09), users can override
+# this by setting OpenGL_GL_PREFERENCE to LEGACY.
+if(POLICY CMP0072)
+    cmake_policy(SET CMP0072 NEW)
 endif()
 
 # Read flags from configuration
@@ -357,28 +366,14 @@ if(NOT TARGET Magnum::Magnum)
     mark_as_advanced(MAGNUM_LIBRARY_DEBUG
         MAGNUM_LIBRARY_RELEASE)
 
-    # Set the MAGNUM_LIBRARY variable based on what was found, use that
-    # information to guess also build type of dynamic plugins
+    # Set the _MAGNUM_LIBRARY variable based on what was found to use it in a
+    # FPHSA call below
     if(MAGNUM_LIBRARY_DEBUG AND MAGNUM_LIBRARY_RELEASE)
-        set(MAGNUM_LIBRARY ${MAGNUM_LIBRARY_RELEASE})
-        get_filename_component(_MAGNUM_PLUGINS_DIR_PREFIX ${MAGNUM_LIBRARY_DEBUG} PATH)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set(_MAGNUM_PLUGINS_DIR_SUFFIX "-d")
-        endif()
+        set(_MAGNUM_LIBRARY MAGNUM_LIBRARY_RELEASE)
     elseif(MAGNUM_LIBRARY_DEBUG)
-        set(MAGNUM_LIBRARY ${MAGNUM_LIBRARY_DEBUG})
-        get_filename_component(_MAGNUM_PLUGINS_DIR_PREFIX ${MAGNUM_LIBRARY_DEBUG} PATH)
-        set(_MAGNUM_PLUGINS_DIR_SUFFIX "-d")
+        set(_MAGNUM_LIBRARY MAGNUM_LIBRARY_DEBUG)
     elseif(MAGNUM_LIBRARY_RELEASE)
-        set(MAGNUM_LIBRARY ${MAGNUM_LIBRARY_RELEASE})
-        get_filename_component(_MAGNUM_PLUGINS_DIR_PREFIX ${MAGNUM_LIBRARY_RELEASE} PATH)
-    endif()
-
-    # On DLL platforms the plugins are stored in bin/ instead of lib/, modify
-    # _MAGNUM_PLUGINS_DIR_PREFIX accordingly
-    if(CORRADE_TARGET_WINDOWS)
-        get_filename_component(_MAGNUM_PLUGINS_DIR_PREFIX ${_MAGNUM_PLUGINS_DIR_PREFIX} PATH)
-        set(_MAGNUM_PLUGINS_DIR_PREFIX ${_MAGNUM_PLUGINS_DIR_PREFIX}/bin)
+        set(_MAGNUM_LIBRARY MAGNUM_LIBRARY_RELEASE)
     endif()
 
     if(MAGNUM_LIBRARY_RELEASE)
@@ -418,8 +413,8 @@ set(_MAGNUM_LIBRARY_COMPONENTS_ALWAYS_STATIC
     OpenGLTester)
 set(_MAGNUM_PLUGIN_COMPONENTS
     AnyAudioImporter AnyImageConverter AnyImageImporter AnySceneConverter
-    AnySceneImporter MagnumFont MagnumFontConverter ObjImporter
-    TgaImageConverter TgaImporter WavAudioImporter)
+    AnySceneImporter ObjImporter TgaImageConverter TgaImporter
+    WavAudioImporter)
 set(_MAGNUM_EXECUTABLE_COMPONENTS
     imageconverter sceneconverter shaderconverter gl-info al-info)
 # Audio and Vk libs aren't enabled by default, and none of the Context,
@@ -461,22 +456,26 @@ if(CORRADE_TARGET_UNIX OR CORRADE_TARGET_WINDOWS)
 endif()
 
 # Inter-component dependencies
+set(_MAGNUM_Audio_CORRADE_DEPENDENCIES PluginManager)
 set(_MAGNUM_Audio_DEPENDENCIES )
 
 # Trade is used by CompareImage. If Trade is not enabled, CompareImage is not
 # compiled at all.
 set(_MAGNUM_DebugTools_DEPENDENCIES Trade)
 set(_MAGNUM_DebugTools_Trade_DEPENDENCY_IS_OPTIONAL ON)
-# MeshTools, Primitives, SceneGraph and Shaders are used only for GL renderers
-# in DebugTools. All of this is optional, compiled in only if the base library
-# was selected.
 if(MAGNUM_TARGET_GL)
-    list(APPEND _MAGNUM_DebugTools_DEPENDENCIES MeshTools Primitives SceneGraph Shaders GL)
-    set(_MAGNUM_DebugTools_MeshTools_DEPENDENCY_IS_OPTIONAL ON)
-    set(_MAGNUM_DebugTools_Primitives_DEPENDENCY_IS_OPTIONAL ON)
-    set(_MAGNUM_DebugTools_SceneGraph_DEPENDENCY_IS_OPTIONAL ON)
-    set(_MAGNUM_DebugTools_Shaders_DEPENDENCY_IS_OPTIONAL ON)
+    list(APPEND _MAGNUM_DebugTools_DEPENDENCIES GL)
     set(_MAGNUM_DebugTools_GL_DEPENDENCY_IS_OPTIONAL ON)
+    # MeshTools, Primitives, SceneGraph and Shaders are used only for
+    # (deprecated) GL renderers in DebugTools. All of this is optional,
+    # compiled in only if the base library was selected.
+    if(MAGNUM_BUILD_DEPRECATED)
+        list(APPEND _MAGNUM_DebugTools_DEPENDENCIES MeshTools Primitives SceneGraph Shaders)
+        set(_MAGNUM_DebugTools_MeshTools_DEPENDENCY_IS_OPTIONAL ON)
+        set(_MAGNUM_DebugTools_Primitives_DEPENDENCY_IS_OPTIONAL ON)
+        set(_MAGNUM_DebugTools_SceneGraph_DEPENDENCY_IS_OPTIONAL ON)
+        set(_MAGNUM_DebugTools_Shaders_DEPENDENCY_IS_OPTIONAL ON)
+    endif()
 endif()
 
 set(_MAGNUM_MaterialTools_DEPENDENCIES Trade)
@@ -486,6 +485,7 @@ if(MAGNUM_TARGET_GL)
     list(APPEND _MAGNUM_MeshTools_DEPENDENCIES GL)
 endif()
 
+set(_MAGNUM_OpenGLTester_CORRADE_DEPENDENCIES TestSuite)
 set(_MAGNUM_OpenGLTester_DEPENDENCIES GL)
 if(MAGNUM_TARGET_EGL)
     list(APPEND _MAGNUM_OpenGLTester_DEPENDENCIES WindowlessEglApplication)
@@ -507,8 +507,15 @@ endif()
 
 set(_MAGNUM_SceneGraph_DEPENDENCIES )
 set(_MAGNUM_SceneTools_DEPENDENCIES Trade)
-set(_MAGNUM_Shaders_DEPENDENCIES GL)
+set(_MAGNUM_Shaders_DEPENDENCIES )
+if(MAGNUM_TARGET_GL)
+    list(APPEND _MAGNUM_Shaders_DEPENDENCIES GL)
+endif()
 
+set(_MAGNUM_ShaderTools_CORRADE_DEPENDENCIES PluginManager)
+set(_MAGNUM_ShaderTools_DEPENDENCIES )
+
+set(_MAGNUM_Text_CORRADE_DEPENDENCIES PluginManager)
 set(_MAGNUM_Text_DEPENDENCIES TextureTools)
 if(MAGNUM_TARGET_GL)
     list(APPEND _MAGNUM_Text_DEPENDENCIES GL)
@@ -519,7 +526,9 @@ if(MAGNUM_TARGET_GL)
     list(APPEND _MAGNUM_TextureTools_DEPENDENCIES GL)
 endif()
 
+set(_MAGNUM_Trade_CORRADE_DEPENDENCIES PluginManager)
 set(_MAGNUM_Trade_DEPENDENCIES )
+
 set(_MAGNUM_VulkanTester_DEPENDENCIES Vk)
 set(_MAGNUM_AndroidApplication_DEPENDENCIES GL)
 
@@ -551,8 +560,6 @@ set(_MAGNUM_EglContext_DEPENDENCIES GL)
 set(_MAGNUM_GlxContext_DEPENDENCIES GL)
 set(_MAGNUM_WglContext_DEPENDENCIES GL)
 
-set(_MAGNUM_MagnumFont_DEPENDENCIES Trade TgaImporter GL) # and below
-set(_MAGNUM_MagnumFontConverter_DEPENDENCIES Trade TgaImageConverter) # and below
 set(_MAGNUM_ObjImporter_DEPENDENCIES MeshTools) # and below
 foreach(_component ${_MAGNUM_PLUGIN_COMPONENTS})
     if(_component MATCHES ".+AudioImporter")
@@ -565,6 +572,13 @@ foreach(_component ${_MAGNUM_PLUGIN_COMPONENTS})
         list(APPEND _MAGNUM_${_component}_DEPENDENCIES Text TextureTools)
     endif()
 endforeach()
+
+# MagnumFont and MagnumFontConverter, available only on a deprecated build
+if(MAGNUM_BUILD_DEPRECATED)
+    list(APPEND _MAGNUM_PLUGIN_COMPONENTS MagnumFont MagnumFontConverter)
+    set(_MAGNUM_MagnumFont_DEPENDENCIES Trade TgaImporter GL Text TextureTools)
+    set(_MAGNUM_MagnumFontConverter_DEPENDENCIES Trade TgaImageConverter Text TextureTools)
+endif()
 
 # Ensure that all inter-component dependencies are specified as well
 set(_MAGNUM_ADDITIONAL_COMPONENTS )
@@ -1101,8 +1115,6 @@ foreach(_component ${Magnum_FIND_COMPONENTS})
         # No special setup for AnyImageConverter plugin
         # No special setup for AnyImageImporter plugin
         # No special setup for AnySceneImporter plugin
-        # No special setup for MagnumFont plugin
-        # No special setup for MagnumFontConverter plugin
         # No special setup for ObjImporter plugin
         # No special setup for TgaImageConverter plugin
         # No special setup for TgaImporter plugin
@@ -1224,7 +1236,7 @@ endif()
 # Complete the check with also all components
 include(FindPackageHandleStandardArgs)
 find_package_handle_standard_args(Magnum
-    REQUIRED_VARS MAGNUM_INCLUDE_DIR MAGNUM_LIBRARY ${MAGNUM_EXTRAS_NEEDED}
+    REQUIRED_VARS MAGNUM_INCLUDE_DIR ${_MAGNUM_LIBRARY} ${MAGNUM_EXTRAS_NEEDED}
     HANDLE_COMPONENTS
     ${_MAGNUM_REASON_FAILURE_MESSAGE})
 
@@ -1328,13 +1340,22 @@ endif()
 set(MAGNUM_DEPLOY_PREFIX "."
     CACHE STRING "Prefix where to put final application executables")
 
-include(${CORRADE_LIB_SUFFIX_MODULE})
-set(MAGNUM_BINARY_INSTALL_DIR bin)
-set(MAGNUM_LIBRARY_INSTALL_DIR lib${LIB_SUFFIX})
-set(MAGNUM_DATA_INSTALL_DIR share/magnum)
-set(MAGNUM_INCLUDE_INSTALL_DIR include/Magnum)
-set(MAGNUM_EXTERNAL_INCLUDE_INSTALL_DIR include/MagnumExternal)
-set(MAGNUM_PLUGINS_INCLUDE_INSTALL_DIR include/MagnumPlugins)
+include(GNUInstallDirs)
+# On Android, if we're using CMake's builtin support and not the NDK  toolchain
+# (i.e., with CMAKE_ANDROID_ARCH_TRIPLE defined), point CMAKE_INSTALL_LIBDIR to
+# a subdirectory based on the target. If the subdirectory doesn't exist, don't
+# adjust anything -- in that case the  assumption is that it's being installed
+# in some other place that doesn't match the NDK layout.
+# TODO could GNUInstallDirs do this on their own? Ugh...
+if(CORRADE_TARGET_ANDROID AND CMAKE_ANDROID_ARCH_TRIPLE AND EXISTS "${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/${CMAKE_ANDROID_ARCH_TRIPLE}/${CMAKE_SYSTEM_VERSION}")
+    set(CMAKE_INSTALL_LIBDIR "${CMAKE_INSTALL_LIBDIR}/${CMAKE_ANDROID_ARCH_TRIPLE}/${CMAKE_SYSTEM_VERSION}")
+endif()
+set(MAGNUM_BINARY_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+set(MAGNUM_LIBRARY_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR})
+set(MAGNUM_DATA_INSTALL_DIR ${CMAKE_INSTALL_DATADIR}/magnum)
+set(MAGNUM_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/Magnum)
+set(MAGNUM_EXTERNAL_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/MagnumExternal)
+set(MAGNUM_PLUGINS_INCLUDE_INSTALL_DIR ${CMAKE_INSTALL_INCLUDEDIR}/MagnumPlugins)
 if(MAGNUM_BUILD_DEPRECATED AND MAGNUM_INCLUDE_INSTALL_PREFIX AND NOT MAGNUM_INCLUDE_INSTALL_PREFIX STREQUAL ".")
     message(DEPRECATION "MAGNUM_INCLUDE_INSTALL_PREFIX is obsolete as its primary use was for old Android NDK versions. Please switch to the NDK r19+ layout instead of using this variable and recreate your build directory to get rid of this warning.")
     set(MAGNUM_DATA_INSTALL_DIR ${MAGNUM_INCLUDE_INSTALL_PREFIX}/${MAGNUM_DATA_INSTALL_DIR})

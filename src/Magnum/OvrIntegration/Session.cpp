@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2015, 2016, 2017 Jonathan Hale <squareys@googlemail.com>
 
@@ -25,6 +25,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#define _MAGNUM_NO_DEPRECATED_OVRINTEGRATION
+
 #include "Session.h"
 
 #include <OVR_CAPI_GL.h>
@@ -36,13 +38,9 @@
 
 namespace Magnum { namespace OvrIntegration {
 
+CORRADE_IGNORE_DEPRECATED_PUSH
 namespace Implementation {
 
-/**
-@brief HMD status flag
-
-@see @ref HmdStatusFlags
-*/
 enum class HmdStatusFlag: UnsignedByte {
     /**
      * A mirror texture was created for the HMD and needs to be destroyed on
@@ -54,7 +52,6 @@ enum class HmdStatusFlag: UnsignedByte {
     Debug = ovrHmdCap_DebugDevice /* 0x0010 */
 };
 
-/** @brief HMD status flags */
 typedef Containers::EnumSet<HmdStatusFlag> HmdStatusFlags;
 
 CORRADE_ENUMSET_OPERATORS(HmdStatusFlags)
@@ -249,5 +246,6 @@ void Session::setDebugHudStereoMode(const DebugHudStereoMode mode) const {
 void Session::setLayerHudMode(const LayerHudMode mode) const {
     ovr_SetInt(_session, OVR_LAYER_HUD_MODE, Int(mode));
 }
+CORRADE_IGNORE_DEPRECATED_POP
 
 }}

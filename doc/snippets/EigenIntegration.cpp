@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2020 Janos <janos.meny@googlemail.com>
 
@@ -26,12 +26,11 @@
 */
 
 #include <Corrade/Utility/DebugStl.h>
+#include <Magnum/Math/Matrix3.h>
+#include <Magnum/Math/Matrix4.h>
 
-#include "Magnum/Magnum.h"
 #include "Magnum/EigenIntegration/GeometryIntegration.h"
 #include "Magnum/EigenIntegration/DynamicMatrixIntegration.h"
-#include "Magnum/Math/Matrix3.h"
-#include "Magnum/Math/Matrix4.h"
 
 #define DOXYGEN_ELLIPSIS(...) __VA_ARGS__
 

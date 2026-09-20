@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
 
     Permission is hereby granted, free of charge, to any person obtaining a
@@ -29,20 +29,25 @@ digraph "Magnum Integration dependency order" {
     ranksep=0.5
     node [style=filled shape=rect margin="0.03,0.03"]
 
-    Magnum [style=solid class="m-info"]
+    Magnum [style=solid class="m-primary"]
     MagnumGL [style=solid label="Magnum\nGL" class="m-info"]
-    MagnumMeshTools [style=solid style=solid label="Magnum\nMeshTools" class="m-info"]
+    MagnumMeshTools [style=solid label="Magnum\nMeshTools" class="m-info"]
     MagnumPrimitives [style=solid label="Magnum\nPrimitives" class="m-info"]
     MagnumSceneGraph [style=solid label="Magnum\nSceneGraph" class="m-info"]
     MagnumShaders [style=solid label="Magnum\nShaders" class="m-info"]
-    MagnumTrade [style=solid style=solid label="Magnum\nTrade" class="m-info"]
+    MagnumTrade [style=solid label="Magnum\nTrade" class="m-info"]
+    MagnumTextureTools [style=solid label="Magnum\nTextureTools" class="m-info"]
+    MagnumText [style=solid label="Magnum\nText" class="m-info"]
+
+    MagnumUi [style=solid label="Magnum\nUi" class="m-info"]
 
     MagnumBulletIntegration [label="Magnum\nBulletIntegration" class="m-info"]
     MagnumEigenIntegration [label="Magnum\nEigenIntegration" class="m-info"]
     MagnumDartIntegration [label="Magnum\nDartIntegration" class="m-info"]
     MagnumGlmIntegration [label="Magnum\nGlmIntegration" class="m-info"]
     MagnumImGuiIntegration [label="Magnum\nImGuiIntegration" class="m-info"]
-    MagnumOvrIntegration [label="Magnum\nOvrIntegration" class="m-info"]
+    MagnumOvrIntegration [label="Magnum\nOvrIntegration" class="m-dim"]
+    MagnumYogaIntegration [label="Magnum\nYogaIntegration" class="m-info"]
 
     MagnumGL -> Magnum [class="m-info"]
     MagnumMeshTools -> Magnum [class="m-info"]
@@ -50,19 +55,28 @@ digraph "Magnum Integration dependency order" {
     MagnumSceneGraph -> Magnum [class="m-info"]
     MagnumShaders -> MagnumGL [class="m-info"]
     MagnumTrade -> Magnum [class="m-info"]
+    MagnumText -> MagnumTextureTools [class="m-info"]
+    MagnumText -> MagnumGL [style=dotted class="m-info"]
+    MagnumTextureTools -> Magnum [class="m-info"]
+    MagnumTextureTools -> MagnumGL [style=dotted class="m-info"]
+
+    MagnumUi -> MagnumGL [style=dotted class="m-info"]
+    MagnumUi -> MagnumText [class="m-info"]
 
     MagnumBulletIntegration -> MagnumGL
     MagnumBulletIntegration -> MagnumSceneGraph
     MagnumBulletIntegration -> MagnumShaders
 
     MagnumDartIntegration -> MagnumGL
+    MagnumDartIntegration -> MagnumMeshTools
     MagnumDartIntegration -> MagnumPrimitives
     MagnumDartIntegration -> MagnumSceneGraph
-    MagnumDartIntegration -> MagnumShaders
+
+    MagnumImGuiIntegration -> MagnumGL
+    MagnumImGuiIntegration -> MagnumShaders
 
     MagnumEigenIntegration -> Magnum
     MagnumGlmIntegration -> Magnum
-    MagnumImGuiIntegration -> MagnumGL
-    MagnumImGuiIntegration -> MagnumShaders
-    MagnumOvrIntegration -> MagnumGL
+    MagnumOvrIntegration -> MagnumGL [class="m-dim"]
+    MagnumYogaIntegration -> MagnumUi
 }

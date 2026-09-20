@@ -7,7 +7,10 @@ IF NOT EXIST %APPVEYOR_BUILD_FOLDER%\2.86.1.zip appveyor DownloadFile https://gi
 7z x 2.86.1.zip || exit /b
 cd bullet3-2.86.1 || exit /b
 mkdir build && cd build || exit /b
+rem Can remove the 3.5 override once https://github.com/bulletphysics/bullet3/commit/d1a4256b3a019117f2bb6cb8c63d6367aaf512e2
+rem (from April 2023) reaches a stable version. So far it didn't (Sep 25).
 cmake .. ^
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ^
     -DCMAKE_BUILD_TYPE=Debug ^
     -DCMAKE_INSTALL_PREFIX=%APPVEYOR_BUILD_FOLDER%/bullet ^
     -DBUILD_SHARED_LIBS=ON ^
@@ -20,6 +23,21 @@ cmake .. ^
     -DINSTALL_LIBS=ON ^
     -DBUILD_UNIT_TESTS=OFF ^
     -G Ninja || exit /b
+cmake --build . --target install || exit /b
+cd .. && cd ..
+
+rem Build Yoga
+appveyor DownloadFile https://github.com/facebook/yoga/archive/refs/tags/v2.0.1.zip || exit /b
+7z x v2.0.1.zip || exit /b
+cd yoga-2.0.1 || exit /b
+rem Exclude tests (which cause the whole of Google test installed, ffs!!) by
+rem making the CMakeLists empty
+type nul > tests/CMakeLists.txt || exit /b
+mkdir build && cd build || exit /b
+cmake .. ^
+    -DCMAKE_BUILD_TYPE=Debug ^
+    -DCMAKE_INSTALL_PREFIX=%APPVEYOR_BUILD_FOLDER%/deps ^
+    %COMPILE_EXTRA% -G Ninja || exit /b
 cmake --build . --target install || exit /b
 cd .. && cd ..
 
@@ -56,13 +74,26 @@ cmake .. ^
     -DMAGNUM_WITH_SCENETOOLS=OFF ^
     -DMAGNUM_WITH_SHADERS=ON ^
     -DMAGNUM_WITH_SHADERTOOLS=OFF ^
-    -DMAGNUM_WITH_TEXT=OFF ^
-    -DMAGNUM_WITH_TEXTURETOOLS=OFF ^
+    -DMAGNUM_WITH_TEXT=ON ^
+    -DMAGNUM_WITH_TEXTURETOOLS=ON ^
     -DMAGNUM_WITH_OPENGLTESTER=ON ^
-    -DMAGNUM_WITH_WINDOWLESSWGLAPPLICATION=OFF ^
     -DMAGNUM_WITH_SDL2APPLICATION=ON ^
+    -DMAGNUM_WITH_GLFWAPPLICATION=ON ^
     -G Ninja || exit /b
 cmake --build . || exit /b
+cmake --build . --target install || exit /b
+cd .. && cd ..
+
+rem Build Magnum Extras, which are a dependency of YogaIntegration
+git clone --depth 1 https://github.com/mosra/magnum-extras.git || exit /b
+cd magnum-extras || exit /b
+mkdir build && cd build || exit /b
+cmake .. ^
+    -DCMAKE_CXX_FLAGS="--coverage" ^
+    -DCMAKE_BUILD_TYPE=Debug ^
+    -DCMAKE_INSTALL_PREFIX=%APPVEYOR_BUILD_FOLDER%/deps ^
+    -DMAGNUM_WITH_UI=ON ^
+    -G Ninja || exit /b
 cmake --build . --target install || exit /b
 cd .. && cd ..
 
@@ -86,12 +117,13 @@ cmake .. ^
     -DGLM_INCLUDE_DIR=%APPVEYOR_BUILD_FOLDER%/deps/glm ^
     -DIMGUI_DIR=%APPVEYOR_BUILD_FOLDER%/deps/imgui ^
     -DEIGEN3_INCLUDE_DIR=%APPVEYOR_BUILD_FOLDER%/deps/eigen/ ^
-    -DMAGNUM_WITH_BULLET=ON ^
-    -DMAGNUM_WITH_DART=OFF ^
-    -DMAGNUM_WITH_EIGEN=ON ^
-    -DMAGNUM_WITH_GLM=ON ^
-    -DMAGNUM_WITH_IMGUI=ON ^
-    -DMAGNUM_WITH_OVR=OFF ^
+    -DMAGNUM_WITH_BULLETINTEGRATION=ON ^
+    -DMAGNUM_WITH_DARTINTEGRATION=OFF ^
+    -DMAGNUM_WITH_EIGENINTEGRATION=ON ^
+    -DMAGNUM_WITH_GLMINTEGRATION=ON ^
+    -DMAGNUM_WITH_IMGUIINTEGRATION=ON ^
+    -DMAGNUM_WITH_OVRINTEGRATION=OFF ^
+    -DMAGNUM_WITH_YOGAINTEGRATION=ON ^
     -DMAGNUM_BUILD_TESTS=ON ^
     -DMAGNUM_BUILD_GL_TESTS=ON ^
     -G Ninja || exit /b
@@ -118,7 +150,11 @@ rem please. The --source-dir needs to be present in order to circumvent
 rem     Warning: "../foo" cannot be normalized because of "..", so skip it.
 rem that happens with CMake before 3.21 that doesn't yet pass full paths to
 rem Ninja: https://github.com/mozilla/grcov/issues/1182
-grcov build -t lcov --source-dir %APPVEYOR_BUILD_FOLDER%/build --keep-only "*/src/Magnum/*" --ignore "*/Test/*" --ignore "*/build/src/*" -o coverage.info --excl-line LCOV_EXCL_LINE --excl-start LCOV_EXCL_START --excl-stop LCOV_EXCL_STOP  || exit /b
+rem
+rem Additionally, MinGW often reports empty lines containing just } as
+rem uncovered, possibly due to exception handling. Exclude them, and feel free
+rem to expand the regex to catch more cases if needed.
+grcov build -t lcov --source-dir %APPVEYOR_BUILD_FOLDER%/build --keep-only "*/src/Magnum/*" --ignore "*/Test/*" -o coverage.info --excl-line "(LCOV_EXCL_LINE|^\s*}$)" --excl-start LCOV_EXCL_START --excl-stop LCOV_EXCL_STOP  || exit /b
 rem Official docs say "not needed for public repos", in reality not using the
 rem token is "extremely flakey". What's best is that if the upload fails, the
 rem damn thing exits with a success error code, and nobody cares:

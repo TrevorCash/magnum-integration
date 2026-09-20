@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
 
@@ -64,7 +64,7 @@ have to be specified before the subdirectory gets added:
 @code{.cmake}
 ...
 
-set(MAGNUM_WITH_GLM ON CACHE BOOL "" FORCE) # enable what you need
+set(MAGNUM_WITH_GLMINTEGRATION ON CACHE BOOL "" FORCE) # enable what you need
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 
 find_package(MagnumIntegration REQUIRED ...) # see below
@@ -92,7 +92,9 @@ This command alone is useless without specifying the components:
 -   `Dart`  --- @ref DartIntegration library
 -   `Glm` --- @ref GlmIntegration library
 -   `ImGui` --- @ref ImGuiIntegration library
--   `Ovr` --- @ref OvrIntegration library
+-   `Ovr` @m_class{m-label m-danger} **deprecated** --- @ref OvrIntegration
+    library
+-   `Yoga` --- @ref YogaIntegration library
 
 Note that [each *Integration namespace](namespaces.html) contains more detailed
 information about dependencies, availability on particular platform and also

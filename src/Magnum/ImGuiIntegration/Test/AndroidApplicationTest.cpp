@@ -1,12 +1,9 @@
-#ifndef Magnum_OvrIntegration_Conversion_h
-#define Magnum_OvrIntegration_Conversion_h
 /*
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
-    Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -27,19 +24,16 @@
     DEALINGS IN THE SOFTWARE.
 */
 
-/** @file
- * @m_deprecated_since{2019,01} Use @ref Magnum/OvrIntegration/Integration.h
- *      instead.
- */
+#include <Magnum/Platform/AndroidApplication.h>
 
-#include "Magnum/configure.h"
+#include "ApplicationTest.hpp"
 
-#ifdef MAGNUM_BUILD_DEPRECATED
-#include "Magnum/OvrIntegration/Integration.h"
-#include "Corrade/Utility/Macros.h"
-CORRADE_DEPRECATED_FILE("use Magnum/OvrIntegration/Integration.h instead")
-#else
-#error use Magnum/OvrIntegration/Integration.h instead
-#endif
+namespace Magnum { namespace ImGuiIntegration { namespace Test { namespace {
 
-#endif
+class AndroidApplicationTest: public ApplicationTest {
+    using ApplicationTest::ApplicationTest;
+};
+
+}}}}
+
+MAGNUM_APPLICATION_MAIN(Magnum::ImGuiIntegration::Test::AndroidApplicationTest)

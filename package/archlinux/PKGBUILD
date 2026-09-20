@@ -2,11 +2,11 @@
 pkgname=magnum-integration
 pkgver=dev
 pkgrel=1
-pkgdesc="Integration libraries for the Magnum C++11/C++14 graphics engine"
+pkgdesc="Integration libraries for the Magnum C++11 graphics engine"
 arch=('i686' 'x86_64')
 url="https://magnum.graphics"
 license=('MIT')
-depends=('magnum' 'bullet' 'eigen' 'glm' 'imgui-src')
+depends=('magnum' 'magnum-extras' 'bullet' 'eigen' 'glm' 'imgui-src' 'yoga')
 makedepends=('cmake' 'ninja')
 options=('!strip' '!buildflags')
 provides=('magnum-integration-git')
@@ -33,11 +33,12 @@ build() {
         -DCMAKE_INSTALL_PREFIX=/usr \
         -DCMAKE_COLOR_DIAGNOSTICS=ON \
         -DIMGUI_DIR=/opt/imgui \
-        -DMAGNUM_WITH_BULLET=ON \
-        -DMAGNUM_WITH_DART=OFF \
-        -DMAGNUM_WITH_EIGEN=ON \
-        -DMAGNUM_WITH_GLM=ON \
-        -DMAGNUM_WITH_IMGUI=ON \
+        -DMAGNUM_WITH_BULLETINTEGRATION=ON \
+        -DMAGNUM_WITH_DARTINTEGRATION=OFF \
+        -DMAGNUM_WITH_EIGENINTEGRATION=ON \
+        -DMAGNUM_WITH_GLMINTEGRATION=ON \
+        -DMAGNUM_WITH_IMGUIINTEGRATION=ON \
+        -DMAGNUM_WITH_YOGAINTEGRATION=ON \
         -DMAGNUM_BUILD_TESTS=ON \
         -DMAGNUM_BUILD_GL_TESTS=ON \
         -G "Ninja Multi-Config"

@@ -4,13 +4,13 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 ShaddyAQN <ShaddyAQN@gmail.com>
     Copyright © 2018 Tomáš Skřivan <skrivantomas@seznam.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
     Copyright © 2024 kolbbond <kolbbond@gmail.com>
-    Copyright © 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -48,7 +48,7 @@ namespace Magnum { namespace ImGuiIntegration {
 
 /**
 @brief Create an `ImTextureID` for a @ref GL::Texture2D
-@m_since_latest
+@m_since_latest_{integration}
 
 Internally, the `ImTextureID` is the underlying OpenGL texture ID, but that's
 an implementation detail that might change in the future.
@@ -58,7 +58,11 @@ inline ImTextureID textureId(GL::Texture2D& texture) {
     #if IMGUI_VERSION_NUM >= 19131
     return texture.id();
     #else
-    return reinterpret_cast<ImTextureID>(texture.id());
+    /* On MSVC this produces "conversion from 'GLuint' to
+       'ImTextureID' of greater size" warning (C4312), because the ImTextureID
+       is a void*, which is larger than UnsignedInt on 64-bit platforms.
+       Casting to a 64-bit integer type first to suppress that. */
+    return reinterpret_cast<ImTextureID>(std::uintptr_t(texture.id()));
     #endif
 }
 
@@ -68,18 +72,40 @@ inline ImTextureID textureId(GL::Texture2D& texture) {
 @param size         Widget size
 @param uvRange      UV range on the texture (covers the whole texture by
     default)
-@param tintColor    Tint color, default @cpp 0xffffffff_rgbaf @ce
-@param borderColor  Border color, default @cpp 0x00000000_rgbaf @ce
 
 @see @ref textureId()
 */
 inline void image(GL::Texture2D& texture, const Vector2& size,
-    const Range2D& uvRange = {{}, Vector2{1.0f}},
-    const Color4& tintColor = Color4{1.0f},
+    const Range2D& uvRange = {{}, Vector2{1.0f}})
+{
+    ImGui::Image(textureId(texture), ImVec2(size), ImVec2(uvRange.topLeft()), ImVec2(uvRange.bottomRight()));
+}
+
+#ifdef MAGNUM_BUILD_DEPRECATED
+/**
+@brief Image widget displaying a @ref GL::Texture2D
+@m_deprecated_since_latest Using explicit tint and border color is no longer
+    possible in newer ImGui. Use @ref image(GL::Texture2D&, const Vector2&, const Range2D&)
+    instead.
+*/
+CORRADE_DEPRECATED("use image(GL::Texture2D&, const Vector2&, const Range2D&) instead") inline void image(GL::Texture2D& texture, const Vector2& size,
+    const Range2D& uvRange,
+    const Color4& tintColor,
     const Color4& borderColor = {})
 {
+    #if IMGUI_VERSION_NUM >= 19190
+    /* This is identical to the obsoleted wrapper code still present in 1.91.9. */
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImGui::PushStyleVar(ImGuiStyleVar_ImageBorderSize, borderColor.w() > 0.0f ? Math::max(1.0f, style.ImageBorderSize) : 0.0f);
+    ImGui::PushStyleColor(ImGuiCol_Border, ImVec4(borderColor));
+    ImGui::ImageWithBg(textureId(texture), ImVec2(size), ImVec2(uvRange.topLeft()), ImVec2(uvRange.bottomRight()), ImVec4(0, 0, 0, 0), ImColor(tintColor));
+    ImGui::PopStyleColor();
+    ImGui::PopStyleVar();
+    #else
     ImGui::Image(textureId(texture), ImVec2(size), ImVec2(uvRange.topLeft()), ImVec2(uvRange.bottomRight()), ImColor(tintColor), ImColor(borderColor));
+    #endif
 }
+#endif
 
 /**
 @brief ImageButton widget displaying a @ref GL::Texture2D
@@ -90,7 +116,7 @@ inline void image(GL::Texture2D& texture, const Vector2& size,
     default)
 @param backgroundColor  Background color, default @cpp 0x00000000_rgbaf @ce
 @param tintColor        Tint color, default @cpp 0xffffffff_rgbaf @ce
-@m_since_latest
+@m_since_latest_{integration}
 
 @see @ref textureId()
 */
@@ -101,7 +127,7 @@ inline bool imageButton(const char* id, GL::Texture2D& texture, const Vector2& s
 {
     /* Old function generating an implicit ID and taking frame padding from an
        explicit variable was deprecated in 1.89 and removed in 1.91.1 */
-    #if IMGUI_VERSION_NUM >= 19110
+    #if defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS) || IMGUI_VERSION_NUM >= 19110
     return ImGui::ImageButton(id, textureId(texture), ImVec2(size), ImVec2(uvRange.topLeft()), ImVec2(uvRange.bottomRight()), ImColor(backgroundColor), ImColor(tintColor));
     #else
     /* This is not exactly the same since the old function pushes another ID
@@ -134,7 +160,7 @@ CORRADE_DEPRECATED("use imageButton(const char*, GL::Texture2D&, const Vector2&,
        explicit variable was deprecated in 1.89 and removed in 1.91.1. This is
        identical to the obsoleted wrapper code still present (but commented
        out) in 1.91.1. */
-    #if IMGUI_VERSION_NUM >= 19110
+    #if defined(IMGUI_DISABLE_OBSOLETE_FUNCTIONS) || IMGUI_VERSION_NUM >= 19110
     /* ImTextureID is already void* */
     ImGui::PushID(textureId);
     if(framePadding >= 0)

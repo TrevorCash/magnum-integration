@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018, 2019 Konstantinos Chatzilygeroudis <costashatz@gmail.com>
 
@@ -240,8 +240,8 @@ Containers::Optional<ShapeData> convertShapeNode(dart::dynamics::ShapeNode& shap
         const Containers::Optional<Trade::SceneData> scene = importer->scene(0);
         CORRADE_INTERNAL_ASSERT(scene);
         const Containers::Array<Containers::Pair<UnsignedInt, Containers::Pair<UnsignedInt, Int>>> meshesMaterials = scene->meshesMaterialsAsArray();
-        Containers::Array<Containers::Optional<Trade::MeshData>> meshes(meshesMaterials.size());
-        Containers::Array<Containers::Optional<Trade::PhongMaterialData>> materials(meshesMaterials.size());
+        Containers::Array<Containers::Optional<Trade::MeshData>> meshes{ValueInit, meshesMaterials.size()};
+        Containers::Array<Containers::Optional<Trade::PhongMaterialData>> materials{ValueInit, meshesMaterials.size()};
         for(UnsignedInt i = 0; i != meshesMaterials.size(); i++) {
             const Containers::Pair<UnsignedInt, Int>& meshMaterial = meshesMaterials[i].second();
             Containers::Optional<Trade::MeshData> meshData = importer->mesh(meshMaterial.first());
@@ -301,8 +301,8 @@ Containers::Optional<ShapeData> convertShapeNode(dart::dynamics::ShapeNode& shap
             }
         }
 
-        Containers::Array<Containers::Optional<Trade::TextureData>> textures(importer->textureCount());
-        Containers::Array<Containers::Optional<Trade::ImageData2D>> images(importer->textureCount());
+        Containers::Array<Containers::Optional<Trade::TextureData>> textures{ValueInit, importer->textureCount()};
+        Containers::Array<Containers::Optional<Trade::ImageData2D>> images{ValueInit, importer->textureCount()};
 
         if(convertTypes & ConvertShapeType::Material) {
             for(UnsignedInt i = 0; i < importer->textureCount(); ++i) {

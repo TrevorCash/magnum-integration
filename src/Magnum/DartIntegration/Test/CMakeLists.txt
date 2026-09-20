@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2018, 2019 Konstantinos Chatzilygeroudis <costashatz@gmail.com>
 #
@@ -35,6 +35,16 @@ else()
     set(DARTINTEGRATION_TEST_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 endif()
 
+# This, and all subsequent checks of the same variable, assumes that Magnum
+# itself is built as static and plugins in turn as well. If only the UI library
+# is built as static (i.e., MAGNUM_UI_BUILD_STATIC is ON but
+# MAGNUM_BUILD_STATIC is OFF), then the plugins are assumed to be dynamic and
+# thus don't need to be linked.
+if(MAGNUM_BUILD_STATIC)
+    find_package(Magnum COMPONENTS AnyImageImporter)
+    find_package(MagnumPlugins COMPONENTS AssimpImporter)
+endif()
+
 find_package(DART 6.0.0 CONFIG REQUIRED OPTIONAL_COMPONENTS io-urdf utils-urdf)
 
 # The DART URDF library is only needed for the tests
@@ -55,6 +65,14 @@ if(DART_utils-urdf_FOUND)
 elseif(DART_io-urdf_FOUND)
     target_link_libraries(DartIntegrationConvertShapeNodeTest PRIVATE dart-io-urdf)
 endif()
+if(MAGNUM_BUILD_STATIC)
+    if(Magnum_AnyImageImporter_FOUND)
+        target_link_libraries(DartIntegrationConvertShapeNodeTest PRIVATE Magnum::AnyImageImporter)
+    endif()
+    if(MagnumPlugins_AssimpImporter_FOUND)
+        target_link_libraries(DartIntegrationConvertShapeNodeTest PRIVATE MagnumPlugins::AssimpImporter)
+    endif()
+endif()
 
 if(MAGNUM_BUILD_GL_TESTS)
     corrade_add_test(DartIntegrationWorldGLTest
@@ -64,5 +82,13 @@ if(MAGNUM_BUILD_GL_TESTS)
         target_link_libraries(DartIntegrationWorldGLTest PRIVATE dart-utils-urdf)
     elseif(DART_io-urdf_FOUND)
         target_link_libraries(DartIntegrationWorldGLTest PRIVATE dart-io-urdf)
+    endif()
+    if(MAGNUM_BUILD_STATIC)
+        if(Magnum_AnyImageImporter_FOUND)
+            target_link_libraries(DartIntegrationWorldGLTest PRIVATE Magnum::AnyImageImporter)
+        endif()
+        if(MagnumPlugins_AssimpImporter_FOUND)
+            target_link_libraries(DartIntegrationWorldGLTest PRIVATE MagnumPlugins::AssimpImporter)
+        endif()
     endif()
 endif()

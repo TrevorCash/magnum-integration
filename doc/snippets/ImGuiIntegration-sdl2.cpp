@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
 
@@ -132,13 +132,15 @@ Float _supersamplingRatio{};
 // ...
 
 void MyApp::pointerPressEvent(PointerEvent& event) {
-    if(_imgui.handlePointerPressEvent(event)) return;
+    if(_imgui.handlePointerPressEvent(event))
+        return;
 
     // event not handled by ImGui, handle it for the app itself
 }
 
 void MyApp::pointerReleaseEvent(PointerEvent& event) {
-    if(_imgui.handlePointerReleaseEvent(event)) return;
+    if(_imgui.handlePointerReleaseEvent(event))
+        return;
 
     // ...
 }

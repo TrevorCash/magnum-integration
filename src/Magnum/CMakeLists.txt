@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
 #
@@ -67,28 +67,32 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/versionIntegration.h.cmake
 
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/versionIntegration.h DESTINATION ${MAGNUM_INCLUDE_INSTALL_DIR})
 
-if(MAGNUM_WITH_BULLET)
+if(MAGNUM_WITH_BULLETINTEGRATION)
     add_subdirectory(BulletIntegration)
 endif()
 
-if(MAGNUM_WITH_DART)
+if(MAGNUM_WITH_DARTINTEGRATION)
     add_subdirectory(DartIntegration)
 endif()
 
-if(MAGNUM_WITH_EIGEN)
+if(MAGNUM_WITH_EIGENINTEGRATION)
     add_subdirectory(EigenIntegration)
 endif()
 
-if(MAGNUM_WITH_GLM)
+if(MAGNUM_WITH_GLMINTEGRATION)
     add_subdirectory(GlmIntegration)
 endif()
 
-if(MAGNUM_WITH_IMGUI)
+if(MAGNUM_WITH_IMGUIINTEGRATION)
     add_subdirectory(ImGuiIntegration)
 endif()
 
-if(MAGNUM_WITH_OVR)
+if(MAGNUM_WITH_OVRINTEGRATION)
     add_subdirectory(OvrIntegration)
+endif()
+
+if(MAGNUM_WITH_YOGAINTEGRATION)
+    add_subdirectory(YogaIntegration)
 endif()
 
 if(MAGNUM_BUILD_TESTS)

@@ -4,15 +4,16 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 ShaddyAQN <ShaddyAQN@gmail.com>
     Copyright © 2018 Tomáš Skřivan <skrivantomas@seznam.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
     Copyright © 2019 Guillaume Jacquemin <williamjcm@users.noreply.github.com>
     Copyright © 2019 Marco Melorio <m.melorio@icloud.com>
-    Copyright © 2022, 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2022, 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
     Copyright © 2022 Stanislaw Halik <sthalik@misaki.pl>
+    Copyright © 2023 Jordan Peck <jordan.me2@gmail.com>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -47,6 +48,20 @@
 #include "Magnum/ImGuiIntegration/Context.h"
 
 namespace Magnum { namespace ImGuiIntegration {
+namespace Implementation {
+    template<class Application, class = decltype(&Application::warpCursor)>
+    constexpr static bool hasWarpCursor(const Application&) { return true; }
+
+    template<class... T> constexpr static bool hasWarpCursor(const T&...) { return false; }
+}
+
+template<class Application> Context::Context(const Vector2& size, const Application& application): Context{*ImGui::CreateContext(), size, application} {}
+
+template<class Application> Context::Context(ImGuiContext& context, const Vector2& size, const Application& application): Context{context, size, application.windowSize(), application.framebufferSize()} {
+    /* We can honor io.WantSetMousePos requests if application type supports it */
+    if(Implementation::hasWarpCursor(application))
+       ImGui::GetIO().BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
+}
 
 template<class KeyEvent> bool Context::handleKeyEvent(KeyEvent& event, bool value) {
     /* Ensure we use the context we're linked to */
@@ -56,20 +71,13 @@ template<class KeyEvent> bool Context::handleKeyEvent(KeyEvent& event, bool valu
     typedef typename Modifiers::Type Modifier;
     typedef decltype(event.key()) Key;
 
-    ImGuiIO &io = ImGui::GetIO();
+    ImGuiIO& io = ImGui::GetIO();
     const Modifiers modifiers = event.modifiers();
 
-    #if IMGUI_VERSION_NUM >= 18823
     io.AddKeyEvent(ImGuiMod_Ctrl, modifiers >= Modifier::Ctrl);
     io.AddKeyEvent(ImGuiMod_Shift, modifiers >= Modifier::Shift);
     io.AddKeyEvent(ImGuiMod_Alt, modifiers >= Modifier::Alt);
     io.AddKeyEvent(ImGuiMod_Super, modifiers >= Modifier::Super);
-    #else
-    io.AddKeyEvent(ImGuiKey_ModCtrl, modifiers >= Modifier::Ctrl);
-    io.AddKeyEvent(ImGuiKey_ModShift, modifiers >= Modifier::Shift);
-    io.AddKeyEvent(ImGuiKey_ModAlt, modifiers >= Modifier::Alt);
-    io.AddKeyEvent(ImGuiKey_ModSuper, modifiers >= Modifier::Super);
-    #endif
 
     #ifndef DOXYGEN_GENERATING_OUTPUT /* it insists on documenting _c() */
     switch(event.key()) {
@@ -214,7 +222,6 @@ MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER(Finger)
 MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER(Pen)
 #undef MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER
 
-#if IMGUI_VERSION_NUM >= 18948
 #define MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER_EVENT_SOURCE(source)       \
     template<class PointerEventSource> constexpr bool is##source##PointerEventSource(PointerEventSource p, decltype(PointerEventSource::source)* = nullptr) { \
         return p == PointerEventSource::source;                             \
@@ -225,7 +232,6 @@ MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER(Pen)
 MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER_EVENT_SOURCE(Touch)
 MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER_EVENT_SOURCE(Pen)
 #undef MAGNUM_IMGUIINTEGRATION_OPTIONAL_POINTER_EVENT_SOURCE
-#endif
 #endif
 
 }
@@ -242,8 +248,8 @@ template<class PointerEvent> bool Context::handlePointerEvent(PointerEvent& even
     const Vector2 position = event.position()*_eventScaling;
 
     ImGuiMouseButton buttonId;
-    /* Finger and pen still reports as mouse left, but for ImGui 1.89.5+ it has
-       an additional field distinguishing the actual source */
+    /* Finger and pen still reports as mouse left, but ImGui has an additional
+       field distinguishing the actual source */
     if(event.pointer() == decltype(event.pointer())::MouseLeft ||
        Implementation::isFingerPointer(event.pointer()) ||
        Implementation::isPenPointer(event.pointer()))
@@ -256,14 +262,13 @@ template<class PointerEvent> bool Context::handlePointerEvent(PointerEvent& even
         /* Unknown button, do nothing */
         return false;
 
-    #if IMGUI_VERSION_NUM >= 18948
     if(Implementation::isTouchPointerEventSource(event.source()))
         io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
     else if(Implementation::isPenPointerEventSource(event.source()))
         io.AddMouseSourceEvent(ImGuiMouseSource_Pen);
     else
         io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-    #endif
+
     io.AddMousePosEvent(position.x(), position.y());
     io.AddMouseButtonEvent(buttonId, value);
 
@@ -364,8 +369,8 @@ template<class PointerMoveEvent> bool Context::handlePointerMoveEvent(PointerMov
        translate that to ImGui as well */
     Containers::Optional<ImGuiMouseButton> buttonId;
     if(event.pointer()) {
-        /* Finger and pen still reports as mouse left, but for ImGui 1.89.5+ it
-           has an additional field distinguishing the actual source */
+        /* Finger and pen still reports as mouse left, but ImGui has an
+           additional field distinguishing the actual source */
         if(*event.pointer() == decltype(*event.pointer())::MouseLeft ||
            Implementation::isFingerPointer(*event.pointer()) ||
            Implementation::isPenPointer(*event.pointer()))
@@ -376,14 +381,13 @@ template<class PointerMoveEvent> bool Context::handlePointerMoveEvent(PointerMov
             buttonId = ImGuiMouseButton_Middle;
     }
 
-    #if IMGUI_VERSION_NUM >= 18948
     if(Implementation::isTouchPointerEventSource(event.source()))
         io.AddMouseSourceEvent(ImGuiMouseSource_TouchScreen);
     else if(Implementation::isPenPointerEventSource(event.source()))
         io.AddMouseSourceEvent(ImGuiMouseSource_Pen);
     else
         io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-    #endif
+
     io.AddMousePosEvent(position.x(), position.y());
     /* The button is pressed if it's contained in the set of currently
        pressed pointers. If event.pointer() is a NullOpt, this isn't
@@ -445,11 +449,23 @@ MAGNUM_IMGUIINTEGRATION_OPTIONAL_CURSOR(No)
 #undef MAGNUM_IMGUIINTEGRATION_OPTIONAL_CURSOR
 #endif
 
+    template<class... T> static void callWarpCursor(const T&...) {}
+
+    template<class Application, class = decltype(&Application::warpCursor)>
+    static void callWarpCursor(Application& application, const Vector2i& position) {
+        application.warpCursor(position);
+    }
 }
 
 template<class Application> void Context::updateApplicationCursor(Application& application) {
     /* Ensure we use the context we're linked to */
     ImGui::SetCurrentContext(_context);
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    if(io.WantSetMousePos) {
+        Implementation::callWarpCursor(application, Vector2i(Vector2(io.MousePos)/_eventScaling));
+    }
 
     switch(ImGui::GetMouseCursor()) {
         case ImGuiMouseCursor_TextInput:
@@ -488,6 +504,121 @@ template<class Application> void Context::updateApplicationCursor(Application& a
     }
 
     CORRADE_INTERNAL_ASSERT_UNREACHABLE(); /* LCOV_EXCL_LINE */
+}
+
+namespace Implementation {
+
+/* Default for Application implementations that don't have any clipboard, such
+   as EmscriptenApplication. Doesn't do anything to preserve ImGui's implicit
+   behavior where it has a local clipboard. Has to be a struct in order to get
+   the "fallback implementation if there's no other more specialized template"
+   behavior. */
+template<class Application, class> struct ApplicationClipboard {
+    static void connect(Context&, Application&) {}
+};
+
+/* Application implementations where returned clipboard contents don't have to
+   be freed, such as GlfwApplication */
+template<class Application> struct ApplicationClipboard<Application, typename std::enable_if<std::is_same<decltype(std::declval<Application>().clipboardText()), Containers::StringView>::value>::type> {
+    static void connect(Context& context, Application& application) {
+        /* There's ImGui::GetCurrentContext(ImGuiContext*) in imgui_internal.h
+           to make sure we're the PlatformIO matches given context, but that's
+           only since 1.91.9 (while the Platform_Clipboard is in 1.91.1), plus
+           use of imgui_internal.h is discouraged and may result in errors like
+            Please '#define IMGUI_DEFINE_MATH_OPERATORS' _BEFORE_ including imgui.h!
+           So instead we're setting the current context, querying its
+           PlatformIO and then reverting it back after. It's not enough to just
+           assert that the current context matches what's expected, as that'd
+           break the ContextGLTest::clipboardMultipleContexts() test. OTOH, in
+           the callbacks themselves the assertion should be enough. */
+        ImGuiContext* const previousContext = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(context.context());
+        #if IMGUI_VERSION_NUM >= 19110
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = [](ImGuiContext* ctx) {
+            CORRADE_INTERNAL_ASSERT(ImGui::GetCurrentContext() == ctx);
+            Containers::StringView out = static_cast<Application*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->clipboardText();
+            CORRADE_INTERNAL_ASSERT(out.flags() & Containers::StringViewFlag::NullTerminated);
+            return out.data();
+        };
+        platformIO.Platform_SetClipboardTextFn = [](ImGuiContext* ctx, const char* text) {
+            CORRADE_INTERNAL_ASSERT(ImGui::GetCurrentContext() == ctx);
+            static_cast<Application*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->setClipboardText(text);
+        };
+        platformIO.Platform_ClipboardUserData = &application;
+        #else
+        /* Similarly here, we could use `context.context()->IO` without setting
+           current context but that also requires imgui_internal.h so we again
+           query the current IO *after* setting the context. No assertions are
+           needed in the callbacks this time as the state pointer is passed as
+           it should be. */
+        ImGuiIO& io = ImGui::GetIO();
+        io.GetClipboardTextFn = [](void* state) {
+            Containers::StringView out = static_cast<Application*>(state)->clipboardText();
+            CORRADE_INTERNAL_ASSERT(out.flags() & Containers::StringViewFlag::NullTerminated);
+            return out.data();
+        };
+        io.SetClipboardTextFn = [](void* state, const char* text) {
+            static_cast<Application*>(state)->setClipboardText(text);
+        };
+        io.ClipboardUserData = &application;
+        #endif
+        ImGui::SetCurrentContext(previousContext);
+    }
+};
+
+/* Application implementations where returned clipboard contents have to be
+   freed, such as Sdl2Application. ImGui wants just a char pointer and doesn't
+   give us any indication of when it should be freed, so we just cache it until
+   another clipboard text is queried. */
+template<class Application> struct ApplicationClipboard<Application, typename std::enable_if<std::is_same<decltype(std::declval<Application>().clipboardText()), Containers::String>::value>::type> {
+    static void connect(Context& context, Application& application) {
+        /* See the connect() variant above for explanation of this messy code,
+           and the assertions in callbacks below. */
+        ImGuiContext* const previousContext = ImGui::GetCurrentContext();
+        ImGui::SetCurrentContext(context.context());
+        #if IMGUI_VERSION_NUM >= 19110
+        ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+        platformIO.Platform_GetClipboardTextFn = [](ImGuiContext*
+            #ifndef CORRADE_NO_ASSERT
+            ctx
+            #endif
+        ) -> const char* {
+            CORRADE_INTERNAL_ASSERT(ImGui::GetCurrentContext() == ctx);
+            Context& context = *static_cast<Context*>(ImGui::GetPlatformIO().Platform_ClipboardUserData);
+            context._lastClipboardText = static_cast<Application*>(context._application)->clipboardText();
+            /* Containers::String is always null-terminated, so no assert here
+               compared to above */
+            return context._lastClipboardText.data();
+        };
+        platformIO.Platform_SetClipboardTextFn = [](ImGuiContext* ctx, const char* text) {
+            CORRADE_INTERNAL_ASSERT(ImGui::GetCurrentContext() == ctx);
+            static_cast<Application*>(static_cast<Context*>(ImGui::GetPlatformIO().Platform_ClipboardUserData)->_application)->setClipboardText(text);
+        };
+        platformIO.Platform_ClipboardUserData = &context;
+        #else
+        ImGuiIO& io = ImGui::GetIO();
+        io.GetClipboardTextFn = [](void* state) -> const char* {
+            Context& context = *static_cast<Context*>(state);
+            context._lastClipboardText = static_cast<Application*>(context._application)->clipboardText();
+            /* Containers::String is always null-terminated, so no assert here
+               compared to above */
+            return context._lastClipboardText.data();
+        };
+        io.SetClipboardTextFn = [](void* state, const char* text) {
+            static_cast<Application*>(static_cast<Context*>(state)->_application)->setClipboardText(text);
+        };
+        io.ClipboardUserData = &context;
+        #endif
+        context._application = &application;
+        ImGui::SetCurrentContext(previousContext);
+    }
+};
+
+}
+
+template<class Application> void Context::connectApplicationClipboard(Application& application) {
+    Implementation::ApplicationClipboard<Application>::connect(*this, application);
 }
 
 }}

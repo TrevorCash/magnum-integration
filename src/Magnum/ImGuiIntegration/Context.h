@@ -4,13 +4,14 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 ShaddyAQN <ShaddyAQN@gmail.com>
     Copyright © 2018 Tomáš Skřivan <skrivantomas@seznam.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
     Copyright © 2019 bowling-allie <allie.smith.epic@gmail.com>
-    Copyright © 2022, 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2022, 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2023 Jordan Peck <jordan.me2@gmail.com>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -35,6 +36,7 @@
  * @brief Class @ref Magnum::ImGuiIntegration::Context
  */
 
+#include <Corrade/Containers/String.h>
 #include <Magnum/Timeline.h>
 #include <Magnum/GL/AbstractShaderProgram.h>
 #include <Magnum/GL/Texture.h>
@@ -44,11 +46,21 @@
 
 #include "Magnum/ImGuiIntegration/visibility.h"
 
+/* On non-deprecated builds we need to check IMGUI_HAS_TEXTURES to know whether
+   to remove atlasTexture() */
+#ifndef MAGNUM_BUILD_DEPRECATED
+#include <imgui.h>
+#endif
+
 #ifndef DOXYGEN_GENERATING_OUTPUT
 struct ImGuiContext;
 #endif
 
 namespace Magnum { namespace ImGuiIntegration {
+
+namespace Implementation {
+    template<class Application, class = void> struct ApplicationClipboard;
+}
 
 /**
 @brief Dear ImGui context
@@ -62,6 +74,11 @@ Creating the @ref Context instance will create the Dear ImGui context and make
 it current. From that point on you can use ImGui calls.
 
 @snippet ImGuiIntegration.cpp Context-usage
+
+After setting up the context you can call @ref connectApplicationClipboard() if
+you want ImGui to access the clipboard. If your application implementation
+doesn't support clipboard access, ImGui's default (local) clipboard
+implementation will be used.
 
 @subsection ImGuiIntegration-Context-usage-rendering Rendering
 
@@ -233,10 +250,16 @@ will result in the font caches being rebuilt.
     The default font used by ImGui, [Proggy Clean](https://www.dafont.com/proggy-clean.font),
     is a bitmap one, becoming rather blurry and blocky in larger sizes. It's
     recommended to switch to a different font for a crisper experience on HiDPI
-    screens.
+    screens. On ImGui 1.92.6 and up, you can load a scalable font, [Proggy Forever](https://github.com/ocornut/proggyforever),
+    using `ImGui::AddFontDefaultVector()`.
 
-There are further important steps for DPI awareness if you are supplying custom
-fonts. Use the @ref Context(ImGuiContext&, const Vector2&, const Vector2i&, const Vector2i&)
+@note
+    On ImGui 1.92 and up, font rasterization is done dynamically, and none of
+    the following steps are needed. Manual scaling is only required on older
+    versions.
+
+On older versions of ImGui (before 1.92), there are further important steps for
+DPI awareness if you are supplying custom fonts. Use the @ref Context(ImGuiContext&, const Vector2&, const Vector2i&, const Vector2i&)
 constructor and pre-scale their size by the ratio of @p size and
 @p framebufferSize. If you don't do that, the fonts will appear tiny on HiDPI
 screens. Example:
@@ -390,6 +413,36 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
         explicit Context(ImGuiContext& context, const Vector2i& size);
 
         /**
+         * @brief Construct using application sizes and features
+         * @param size                  Size of the user interface to which all
+         *      widgets are positioned
+         * @param application           Application instance from which window
+         *      and framebuffer sizes as well as supported features are taken
+         *
+         * Compared to @ref Context(const Vector2&, const Vector2i&, const Vector2i&)
+         * this takes window size and framebuffer size from the application
+         * instance and it enables additional features depending on the given
+         * Application capabilities.
+         */
+        template<class Application> explicit Context(const Vector2& size, const Application& application);
+
+        /**
+         * @brief Construct from an existing context, using application sizes
+         *      and features
+         * @param context               Existing ImGui context
+         * @param size                  Size of the user interface to which all
+         *      widgets are positioned
+         * @param application           Application instance from which window
+         *      and framebuffer sizes as well as supported features are taken
+         *
+         * Compared to @ref Context(ImGuiContext&, const Vector2&, const Vector2i&, const Vector2i&)
+         * this takes window size and framebuffer size from the application
+         * instance and it enables additional features depending on the given
+         * Application capabilities.
+         */
+        template<class Application> explicit Context(ImGuiContext& context, const Vector2& size, const Application& application);
+
+        /**
          * @brief Construct without creating the underlying ImGui context
          *
          * This constructor also doesn't create any internal OpenGL objects,
@@ -439,11 +492,23 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
          */
         ImGuiContext* release();
 
+        #if !defined(IMGUI_HAS_TEXTURES) || defined(MAGNUM_BUILD_DEPRECATED)
         /**
          * @brief Font texture used in `ImFontAtlas`
          * @m_since_{integration,2020,06}
+         * @m_deprecated_since_latest There is no global font atlas texture in
+         *     ImGui 1.92 and up.
+         *
+         * Returns the underlying texture for the ImGui font atlas. ImGui
+         * versions 1.92 and up create and destroy textures dynamically, on
+         * those versions this function returns an empty,
+         * @ref Magnum::NoCreate "NoCreate"-d texture.
          */
+        #if defined(IMGUI_HAS_TEXTURES)
+        CORRADE_DEPRECATED("There is no global font atlas texture in ImGui 1.92 and up")
+        #endif
         GL::Texture2D& atlasTexture() { return _texture; }
+        #endif
 
         /**
          * @brief Relayout the context
@@ -503,7 +568,7 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
 
         /**
          * @brief Handle pointer press event
-         * @m_since_latest
+         * @m_since_latest_{integration}
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
          * and then propagates the event, such as the one coming from
@@ -537,7 +602,7 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
 
         /**
          * @brief Handle pointer release event
-         * @m_since_latest
+         * @m_since_latest_{integration}
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
          * and then propagates the event, such as the one coming from
@@ -555,9 +620,10 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
         #ifdef MAGNUM_BUILD_DEPRECATED
         /**
          * @brief Handle mouse release event
-         * @m_deprecated_since_latest Use @ref handlePointerReleaseEvent() with a
-         *      corresponding @relativeref{Platform::Sdl2Application,PointerEvent}
-         *      instance instead.
+         * @m_deprecated_since_latest Use @ref handlePointerReleaseEvent() with
+         *      a corresponding
+         *      @relativeref{Platform::Sdl2Application,PointerEvent} instance
+         *      instead.
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
          * and then propagates the event, such as the one coming from
@@ -571,7 +637,7 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
 
         /**
          * @brief Handle scroll event
-         * @m_since_latest
+         * @m_since_latest_{integration}
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
          * and then propagates the event, such as the one coming from
@@ -601,7 +667,7 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
 
         /**
          * @brief Handle pointer move event
-         * @m_since_latest
+         * @m_since_latest_{integration}
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
          * and then propagates the event, such as the one coming from
@@ -620,7 +686,8 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
         /**
          * @brief Handle mouse move event
          * @m_deprecated_since_latest Use @ref handlePointerMoveEvent() with a
-         *      corresponding @relativeref{Platform::Sdl2Application,PointerMoveEvent}
+         *      corresponding
+         *      @relativeref{Platform::Sdl2Application,PointerMoveEvent}
          *      instance instead.
          *
          * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
@@ -681,16 +748,38 @@ class MAGNUM_IMGUIINTEGRATION_EXPORT Context {
          */
         template<class Application> void updateApplicationCursor(Application& application);
 
+        /**
+         * @brief Connect application clipboard
+         * @m_since_latest_{integration}
+         *
+         * Calls @cpp ImGui::SetCurrentContext() @ce on @ref context() first
+         * and then sets up the clipboard callbacks, connecting them with the
+         * application via @relativeref{Platform::Sdl2Application,clipboardText()}
+         * and @relativeref{Platform::Sdl2Application,setClipboardText()}. If
+         * the application doesn't implement a clipboard, does nothing.
+         */
+        template<class Application> void connectApplicationClipboard(Application& application);
+
     private:
+        template<class Application, class> friend struct Implementation::ApplicationClipboard;
+
         ImGuiContext* _context;
         Shaders::FlatGL2D _shader;
-        GL::Texture2D _texture{NoCreate};
         GL::Buffer _vertexBuffer{GL::Buffer::TargetHint::Array};
         GL::Buffer _indexBuffer{GL::Buffer::TargetHint::ElementArray};
         Timeline _timeline;
         GL::Mesh _mesh;
         Vector2 _supersamplingRatio,
             _eventScaling;
+        /* Optionally used by connectApplicationClipboard() */
+        void* _application;
+        Containers::String _lastClipboardText;
+
+        /* Texture atlas, created dynamically on 1.92 and up. On deprecated
+           builds we still need a reference to return in atlasTexture(). */
+        #if !defined(IMGUI_HAS_TEXTURES) || defined(MAGNUM_BUILD_DEPRECATED)
+        GL::Texture2D _texture{NoCreate};
+        #endif
 
     private:
         template<class KeyEvent> bool handleKeyEvent(KeyEvent& event, bool value);

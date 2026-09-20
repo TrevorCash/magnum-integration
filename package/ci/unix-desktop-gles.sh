@@ -22,7 +22,10 @@ mkdir build && cd build
 cmake .. \
     -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" \
     -DCMAKE_INSTALL_PREFIX=$HOME/deps \
-    -DCMAKE_PREFIX_PATH="$HOME/sdl2;$HOME/swiftshader" \
+    `# SwiftShader is used only on the Mac ES3 build. On Linux Mesa llvmpipe` \
+    `# is used instead and SwiftShader is not even downloaded so this points` \
+    `# to a non-existent location and does nothing.` \
+    -DCMAKE_PREFIX_PATH="$HOME/swiftshader" \
     -DCMAKE_INSTALL_RPATH="$HOME/deps/lib;$HOME/swiftshader/lib" \
     -DCMAKE_BUILD_TYPE=Debug \
     -DMAGNUM_TARGET_GLES=ON \
@@ -38,13 +41,13 @@ cmake .. \
     -DMAGNUM_WITH_SCENETOOLS=OFF \
     -DMAGNUM_WITH_SHADERS=ON \
     -DMAGNUM_WITH_SHADERTOOLS=OFF \
-    -DMAGNUM_WITH_TEXT=OFF \
-    -DMAGNUM_WITH_TEXTURETOOLS=OFF \
+    -DMAGNUM_WITH_TEXT=$WITH_YOGA \
+    -DMAGNUM_WITH_TEXTURETOOLS=$WITH_YOGA \
     -DMAGNUM_WITH_OPENGLTESTER=ON \
     -DMAGNUM_WITH_ANYIMAGEIMPORTER=ON \
     -DMAGNUM_WITH_SDL2APPLICATION=ON \
-    -DMAGNUM_WITH_WINDOWLESS${PLATFORM_GL_API}APPLICATION=ON \
     -DMAGNUM_WITH_SDL2APPLICATION=ON \
+    -DMAGNUM_WITH_GLFWAPPLICATION=ON \
     -G Ninja
 ninja install
 cd ../..
@@ -63,27 +66,58 @@ cmake .. \
 ninja install
 cd ../..
 
+# Magnum Extras, which are a dependency for YogaIntegration (which depends on
+# Ui, which is ES3-only, and additionally requires C++17 and CMake 3.13+ to
+# build)
+if [ "$WITH_YOGA" == "ON" ]; then
+    git clone --depth 1 https://github.com/mosra/magnum-extras.git
+    cd magnum-extras
+    mkdir build && cd build
+    cmake .. \
+        -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" \
+        -DCMAKE_INSTALL_PREFIX=$HOME/deps \
+        `# SwiftShader is used only on the Mac ES3 build. On Linux Mesa` \
+        `# llvmpipe is used instead and SwiftShader is not even downloaded` \
+        `# so this points to a non-existent location and does nothing.` \
+        -DCMAKE_PREFIX_PATH="$HOME/swiftshader" \
+        -DCMAKE_INSTALL_RPATH="$HOME/deps/lib;$HOME/swiftshader/lib" \
+        -DCMAKE_BUILD_TYPE=Debug \
+        -DMAGNUM_WITH_UI=ON \
+        -G Ninja
+    ninja install
+    cd ../..
+fi
+
 mkdir build && cd build
 cmake .. \
     -DCMAKE_CXX_FLAGS="$CMAKE_CXX_FLAGS" \
     -DCMAKE_INSTALL_PREFIX=$HOME/deps \
-    -DCMAKE_PREFIX_PATH="$HOME/deps-dart;$HOME/sdl2;$HOME/swiftshader" \
+    -DCMAKE_PREFIX_PATH="$HOME/deps-dart;$HOME/swiftshader" \
     -DCMAKE_INSTALL_RPATH="$HOME/deps/lib;$HOME/swiftshader/lib" \
     -DIMGUI_DIR=$HOME/imgui \
     -DCMAKE_BUILD_TYPE=Debug \
-    -DMAGNUM_WITH_BULLET=ON \
-    -DMAGNUM_WITH_DART=OFF \
-    -DMAGNUM_WITH_EIGEN=ON \
-    -DMAGNUM_WITH_GLM=ON \
-    -DMAGNUM_WITH_IMGUI=ON \
-    -DMAGNUM_WITH_OVR=OFF \
+    -DMAGNUM_WITH_BULLETINTEGRATION=ON \
+    -DMAGNUM_WITH_DARTINTEGRATION=OFF \
+    -DMAGNUM_WITH_EIGENINTEGRATION=ON \
+    -DMAGNUM_WITH_GLMINTEGRATION=ON \
+    -DMAGNUM_WITH_IMGUIINTEGRATION=ON \
+    -DMAGNUM_WITH_OVRINTEGRATION=OFF \
+    -DMAGNUM_WITH_YOGAINTEGRATION=$WITH_YOGA \
     -DMAGNUM_BUILD_TESTS=ON \
     -DMAGNUM_BUILD_GL_TESTS=ON \
     -G Ninja
 ninja $NINJA_JOBS
 
-CORRADE_TEST_COLOR=ON ctest -V
-if [ "$TARGET_GLES2" == "ON" ]; then CORRADE_TEST_COLOR=ON MAGNUM_DISABLE_EXTENSIONS="OES_vertex_array_object" ctest -V -R GLTest; fi
+export CORRADE_TEST_COLOR=ON
+
+# Not running GL benchmarks because I'm not interested in knowing speed of a
+# random software GPU emulation, further offset by inherent randomness of a CI
+# VM.
+ctest -V -E GLBenchmark
+if [ "$TARGET_GLES2" == "ON" ]; then
+    MAGNUM_DISABLE_EXTENSIONS="OES_vertex_array_object" ctest -V -R GLTest
+    MAGNUM_DISABLE_EXTENSIONS="GL_EXT_unpack_subimage" ctest -V -R GLTest
+fi
 
 # Test install, after running the tests as for them it shouldn't be needed
 ninja install

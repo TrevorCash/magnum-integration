@@ -4,7 +4,7 @@ EGIT_REPO_URI="https://github.com/mosra/magnum-integration.git"
 
 inherit cmake-utils git-r3
 
-DESCRIPTION="Integration libraries for the Magnum C++11/C++14 graphics engine"
+DESCRIPTION="Integration libraries for the Magnum C++11 graphics engine"
 HOMEPAGE="https://magnum.graphics"
 
 LICENSE="MIT"
@@ -25,11 +25,12 @@ src_configure() {
 	local mycmakeargs=(
 		-DCMAKE_INSTALL_PREFIX="${EPREFIX}/usr"
 		-DCMAKE_BUILD_TYPE=Release
-		-DMAGNUM_WITH_BULLET=ON
-		-DMAGNUM_WITH_DART=OFF
-		-DMAGNUM_WITH_EIGEN=ON
-		-DMAGNUM_WITH_GLM=ON
-		-DMAGNUM_WITH_IMGUI=OFF
+		-DMAGNUM_WITH_BULLETINTEGRATION=ON
+		-DMAGNUM_WITH_DARTINTEGRATION=OFF
+		-DMAGNUM_WITH_EIGENINTEGRATION=ON
+		-DMAGNUM_WITH_GLMINTEGRATION=ON
+		-DMAGNUM_WITH_IMGUIINTEGRATION=OFF
+		-DMAGNUM_WITH_YOGAINTEGRATION=OFF
 	)
 	cmake-utils_src_configure
 }

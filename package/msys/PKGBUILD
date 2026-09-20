@@ -7,7 +7,7 @@ pkgbase=mingw-w64-${_realname}
 pkgname="${MINGW_PACKAGE_PREFIX}-${_realname}"
 pkgver=dev
 pkgrel=1
-pkgdesc="Integration libraries for the Magnum C++11/C++14 graphics engine"
+pkgdesc="Integration libraries for the Magnum C++11 graphics engine"
 arch=('any')
 url="https://magnum.graphics/"
 license=('MIT')
@@ -29,9 +29,10 @@ build() {
             -G'Ninja' \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${MINGW_PREFIX} \
-            -DMAGNUM_WITH_BULLET=ON \
-            -DMAGNUM_WITH_EIGEN=ON \
-            -DMAGNUM_WITH_GLM=ON
+            -DMAGNUM_WITH_BULLETINTEGRATION=ON \
+            -DMAGNUM_WITH_EIGENINTEGRATION=ON \
+            -DMAGNUM_WITH_GLMINTEGRATION=ON \
+            -DMAGNUM_WITH_YOGAINTEGRATION=OFF
     ninja
 }
 

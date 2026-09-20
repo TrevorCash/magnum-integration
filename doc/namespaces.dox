@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
 
@@ -37,11 +37,11 @@
 
 Conversion of matrix and vector classes, wrappers for rigid body dynamics.
 
-This library depends on the [Bullet Physics](http://bulletphysics.org/) library
-and is built if `MAGNUM_WITH_BULLET` is enabled when building Magnum
-Integration. To use this library with CMake, request the `Bullet` component of
-the `MagnumIntegration` package and link to the `MagnumIntegration::Bullet`
-target:
+This library depends on the [Bullet Physics](https://bulletphysics.org/)
+library and is built if `MAGNUM_WITH_BULLETINTEGRATION` is enabled when
+building Magnum Integration. To use this library with CMake, request the
+`Bullet` component of the `MagnumIntegration` package and link to the
+`MagnumIntegration::Bullet` target:
 
 @code{.cmake}
 find_package(MagnumIntegration REQUIRED Bullet)
@@ -70,7 +70,7 @@ set(BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
 set(BUILD_BULLET3 OFF CACHE BOOL "" FORCE)
 # This is needed in case BUILD_EXTRAS is enabled, as you'd get a CMake syntax
 # error otherwise
-set(PKGCONFIG_INSTALL_PREFIX "lib${LIB_SUFFIX}/pkgconfig/")
+set(PKGCONFIG_INSTALL_PREFIX "${CMAKE_INSTALL_LIBDIR}/pkgconfig/")
 # Bullet's buildsystem doesn't correctly express dependencies between static
 # libs, causing linker errors on Magnum side. If you have CMake 3.13, the Find
 # module is able to correct that on its own, otherwise you need to enable
@@ -81,7 +81,7 @@ set(BUILD_SHARED_LIBS ON CACHE BOOL "" FORCE)
 #set(USE_DOUBLE_PRECISION ON CACHE BOOL "" FORCE)
 add_subdirectory(bullet3 EXCLUDE_FROM_ALL)
 
-set(MAGNUM_WITH_BULLET ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_BULLETINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -103,9 +103,9 @@ example, @ref building-integration and @ref cmake-integration.
 
 @m_class{m-block m-success}
 
-@thirdparty This library makes use of [Bullet Physics](http://bulletphysics.org/),
+@thirdparty This library makes use of [Bullet Physics](https://bulletphysics.org/),
     released under the @m_class{m-label m-success} **zlib license**
-    ([license text](http://zlib.net/zlib_license.html),
+    ([license text](https://zlib.net/zlib_license.html),
     [choosealicense.com](https://choosealicense.com/licenses/zlib/)).
     Attribution is appreciated but not required.
 */
@@ -119,8 +119,8 @@ example, @ref building-integration and @ref cmake-integration.
 Conversion of nodes and shapes for visualizing physics simulation.
 
 This library depends on the [DART](https://dartsim.github.io/) library
-and is built if `MAGNUM_WITH_DART` is enabled when building Magnum Integration.
-To use this library with CMake, put [FindMagnumIntegration.cmake](https://github.com/mosra/magnum-integration/blob/master/modules/FindMagnumIntegration.cmake)
+and is built if `MAGNUM_WITH_DARTINTEGRATION` is enabled when building Magnum
+Integration. To use this library with CMake, put [FindMagnumIntegration.cmake](https://github.com/mosra/magnum-integration/blob/master/modules/FindMagnumIntegration.cmake)
 into your `modules/` directory, request the `Dart` component of the
 `MagnumIntegration` package and link to the `MagnumIntegration::Dart` target:
 
@@ -139,7 +139,7 @@ it as a system dependency and point `CMAKE_PREFIX_PATH` to its installation dir
 if necessary.
 
 @code{.cmake}
-set(MAGNUM_WITH_DART ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_DARTINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -173,9 +173,9 @@ Conversion of math types from and to the Eigen library.
 
 @section EigenIntegration-usage Usage
 
-This library depends on the [Eigen](http://eigen.tuxfamily.org/) library and is
-built if `MAGNUM_WITH_EIGEN` is enabled when building Magnum Integration. To
-use this library with CMake, put [FindMagnumIntegration.cmake](https://github.com/mosra/magnum-integration/blob/master/modules/FindMagnumIntegration.cmake)
+This library depends on the [Eigen](https://eigen.tuxfamily.org/) library and
+is built if `MAGNUM_WITH_EIGENINTEGRATION` is enabled when building Magnum
+Integration. To use this library with CMake, put [FindMagnumIntegration.cmake](https://github.com/mosra/magnum-integration/blob/master/modules/FindMagnumIntegration.cmake)
 into your `modules/` directory, request the `Eigen` component of the
 `MagnumIntegration` package and link to the `MagnumIntegration::Eigen` target:
 
@@ -197,7 +197,7 @@ its installation dir if necessary.
 set(EIGEN3_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/eigen)
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/eigen/cmake)
 
-set(MAGNUM_WITH_EIGEN ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_EIGENINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -227,18 +227,18 @@ documentation for more information.
 @m_class{m-block m-warning}
 
 @thirdparty This library makes use of the
-    [Eigen](http://eigen.tuxfamily.org/),
+    [Eigen](https://eigen.tuxfamily.org/),
     released under @m_class{m-label m-warning} **MPL 2.0**
-    ([license text](http://www.mozilla.org/MPL/2.0),
+    ([license text](https://www.mozilla.org/en-US/MPL/2.0/),
     [choosealicense.com](https://choosealicense.com/licenses/mpl-2.0/)).
     Attribution is required for public use, source code of licensed files and
     modifications of these files have to be made available under the same
     license. Additionally, some parts rely on third-party code licensed under
     @m_class{m-label m-warning} **LGPLv3**
-    ([license text](http://eigen.tuxfamily.org/index.php?title=Main_Page#License),
+    ([license text](https://eigen.tuxfamily.org/index.php?title=Main_Page#License),
     [choosealicense.com](https://choosealicense.com/licenses/lgpl-3.0/)),
     requiring either dynamic linking or full source disclosure for public use.
-    See the [license notes](http://eigen.tuxfamily.org/index.php?title=Main_Page#License)
+    See the [license notes](https://eigen.tuxfamily.org/index.php?title=Main_Page#License)
     for details.
 
 @m_class{m-block m-success}
@@ -263,9 +263,9 @@ Conversion of math types from and to the GLM library, debug output.
 @section GlmIntegration-usage Usage
 
 This library depends on the [GLM](https://glm.g-truc.net/) library and is built
-if `MAGNUM_WITH_GLM` is enabled when building Magnum Integration. To use this
-library with CMake, request the `Glm` component of the `MagnumIntegration`
-package and link to the `MagnumIntegration::Glm` target:
+if `MAGNUM_WITH_GLMINTEGRATION` is enabled when building Magnum Integration. To
+use this library with CMake, request the `Glm` component of the
+`MagnumIntegration` package and link to the `MagnumIntegration::Glm` target:
 
 @code{.cmake}
 find_package(MagnumIntegration REQUIRED Glm)
@@ -282,7 +282,7 @@ it as a system dependency and point `CMAKE_PREFIX_PATH` to its installation dir
 if necessary.
 
 @code{.cmake}
-set(MAGNUM_WITH_GLM ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_GLMINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -327,9 +327,9 @@ for more information. See also @ref building-integration and
 Extensions to the [GLM](https://glm.g-truc.net/) library.
 
 This library depends on the [GLM](https://glm.g-truc.net/) library and is built
-if `MAGNUM_WITH_GLM` is enabled when building Magnum Integration. To use this
-library with CMake, request the `Glm` component of the `MagnumIntegration`
-package and link to the `MagnumIntegration::Glm` target:
+if `MAGNUM_WITH_GLMINTEGRATION` is enabled when building Magnum Integration. To
+use this library with CMake, request the `Glm` component of the
+`MagnumIntegration` package and link to the `MagnumIntegration::Glm` target:
 
 @code{.cmake}
 find_package(MagnumIntegration REQUIRED Glm)
@@ -346,7 +346,7 @@ it as a system dependency and point `CMAKE_PREFIX_PATH` to its installation dir
 if necessary.
 
 @code{.cmake}
-set(MAGNUM_WITH_GLM ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_GLMINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -364,11 +364,11 @@ Conversion of math classes and rendering of Dear ImGui using Magnum.
 
 @section ImGuiIntegration-usage Usage
 
-This library depends on [Dear ImGui](https://github.com/ocornut/imgui) 1.88 and
-newer and is built if `MAGNUM_WITH_IMGUI` is enabled when building Magnum
-Integration. To use this library with CMake, request the `ImGui` component of
-the `MagnumIntegration` package and link to the `MagnumIntegration::ImGui`
-target:
+This library depends on [Dear ImGui](https://github.com/ocornut/imgui) 1.91.0
+and newer and is built if `MAGNUM_WITH_IMGUIINTEGRATION` is enabled when
+building Magnum Integration. To use this library with CMake, request the
+`ImGui` component of the `MagnumIntegration` package and link to the
+`MagnumIntegration::ImGui` target:
 
 @code{.cmake}
 find_package(MagnumIntegration REQUIRED ImGui)
@@ -384,7 +384,7 @@ Additionally, if you're using Magnum as a CMake subproject, bundle the
 
 @code{.cmake}
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/imgui)
-set(MAGNUM_WITH_IMGUI ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_IMGUIINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
@@ -410,8 +410,8 @@ also the @ref examples-imgui example, @ref building-integration and
 @section ImGuiIntegration-version-support-policy ImGui version support policy
 
 The oldest supported ImGui version is regularly bumped to one that was released
-roughly two years ago (so for example in September 2024 it's version 1.88,
-released in June 2022). This matches deprecation policy of the ImGui project
+roughly two years ago (so for example in August 2026 it's version 1.91.0,
+released in July 2024). This matches deprecation policy of the ImGui project
 itself, where APIs get removed in two years after they were marked as obsolete.
 
 @m_class{m-block m-success}
@@ -425,16 +425,24 @@ itself, where APIs get removed in two years after they were marked as obsolete.
 
 /** @dir Magnum/OvrIntegration
  * @brief Namespace @ref Magnum::OvrIntegration
+ * @m_deprecated_since_latest The original Oculus hardware and the associated
+ *      SDK are no longer supported by the manufacturer and the integration
+ *      library is thus scheduled for removal. At the moment, no integration
+ *      for the successor OpenXR library is provided.
  */
 /** @namespace Magnum::OvrIntegration
 @brief Integration with the Oculus SDK (LibOVR)
+@m_deprecated_since_latest The original Oculus hardware and the associated SDK
+    are no longer supported by the manufacturer and the integration library is
+    thus scheduled for removal. At the moment, no integration for the
+    successor OpenXR library is provided.
 
 Conversion of math classes, wrappers for most OVR CAPI structures and functions.
 
 This library depends on the [Oculus SDK](https://developer.oculus.com/) and is
-built if `MAGNUM_WITH_OVR` is enabled when building Magnum Integration. To use
-this library with CMake, request the `Ovr` component of the `MagnumIntegration`
-package and link to the `MagnumIntegration::Ovr` target:
+built if `MAGNUM_WITH_OVRINTEGRATION` is enabled when building Magnum
+Integration. To use this library with CMake, request the `Ovr` component of the
+`MagnumIntegration` package and link to the `MagnumIntegration::Ovr` target:
 
 @code{.cmake}
 find_package(MagnumIntegration REQUIRED Ovr)
@@ -451,16 +459,61 @@ a system dependency and point `CMAKE_PREFIX_PATH` to its installation dir if
 necessary.
 
 @code{.cmake}
-set(MAGNUM_WITH_OVR ON CACHE BOOL "" FORCE)
+set(MAGNUM_WITH_OVRINTEGRATION ON CACHE BOOL "" FORCE)
 add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
 @endcode
 
-See the @ref examples-ovr example, @ref building-integration and
-@ref cmake-integration for more information.
+See @ref building-integration and @ref cmake-integration for more information.
 
 @m_class{m-block m-warning}
 
 @thirdparty This library makes use of [Oculus SDK](https://developer.oculus.com/),
     released under the @m_class{m-label m-warning} **Oculus SDK license**
     ([license text](https://developer.oculus.com/licenses/sdk-3.5/)).
+*/
+
+/** @dir Magnum/YogaIntegration
+ * @brief Namespace @ref Magnum::YogaIntegration
+ * @m_since_latest_{integration}
+ */
+/** @namespace Magnum::YogaIntegration
+@brief Integration with Yoga Layout
+
+Implements a layouter for the @ref Ui library using
+[Yoga Layout](https://yogalayout.dev).
+
+This library depends on the [Yoga Layout](https://yogalayout.dev) library and
+is built if `MAGNUM_WITH_YOGAINTEGRATION` is enabled when building Magnum
+Integration. To use this library with CMake, request the `Yoga` component of
+the `MagnumIntegration` package and link to the `MagnumIntegration::Yoga`
+target:
+
+@code{.cmake}
+find_package(MagnumIntegration REQUIRED Yoga)
+
+# ...
+target_link_libraries(your-app PRIVATE MagnumIntegration::Yoga)
+@endcode
+
+Additionally, if you're using Magnum as a CMake subproject, bundle the
+[magnum-integration repository](https://github.com/mosra/magnum-integration)
+and do the following *before* calling @cmake find_package() @ce. Using Yoga
+Layout itself as a CMake subproject isn't tested at the moment, so you need to
+provide it as a system dependency and point `CMAKE_PREFIX_PATH` to its
+installation dir if necessary.
+
+@code{.cmake}
+set(MAGNUM_WITH_YOGAINTEGRATION ON CACHE BOOL "" FORCE)
+add_subdirectory(magnum-integration EXCLUDE_FROM_ALL)
+@endcode
+
+See @ref building-integration and @ref cmake-integration for more information.
+
+@m_class{m-block m-success}
+
+@thirdparty This library makes use of [Yoga Layout](https://yogalayout.dev),
+    released under @m_class{m-label m-success} **MIT**
+    ([license text](https://github.com/facebook/yoga/blob/main/LICENSE),
+    [choosealicense.com](https://choosealicense.com/licenses/mit/)).
+    Attribution is required for public use.
 */

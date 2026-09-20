@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
 
     Permission is hereby granted, free of charge, to any person obtaining a
@@ -40,14 +40,26 @@ namespace Magnum {
     versions are not supported anymore and all workarounds for them were
     removed. This is a conservative change, as there are no known supported
     distributions which would have anything older than 3.5.
--   Minimal supported ImGui version is now 1.88 from June 2022 (see
-    [mosra/magnum-integration#111](https://github.com/mosra/magnum-integration/pull/111)). The @ref ImGuiIntegration-version-support-policy "version support policy is now also explicitly adocumented".
+-   Minimal supported ImGui version is now 1.91.0 from July 2024 (see
+    [mosra/magnum-integration#111](https://github.com/mosra/magnum-integration/pull/111)
+    and [mosra/magnum-integration#123](https://github.com/mosra/magnum-integration/pull/123)).
+    The @ref ImGuiIntegration-version-support-policy "version support policy is now also explicitly documented".
 
 @subsection changelog-integration-latest-new New features
 
+-   New @ref YogaIntegration library integrating
+    [Yoga Layout](https://yogalayout.dev) as a layouter for the @ref Ui library
 -   Conversion between dynamic Eigen types and
     @ref Corrade::Containers::StridedArrayView "Containers::StridedArrayView"
     using @ref EigenIntegration::arrayCast() (see [mosra/magnum-integration#74](https://github.com/mosra/magnum-integration/pull/74))
+-   Added @ref ImGuiIntegration::Context::connectApplicationClipboard() to
+    expose @ref Platform::Sdl2Application::clipboardText() "Platform::*Application::clipboardText()"
+    and @ref Platform::Sdl2Application::setClipboardText() "Platform::*Application::setClipboardText()"
+    to ImGui
+-   @ref ImGuiIntegration/Integration.h now supports conversion of `ImStrv` to
+    and from Corrade string and string view types (see
+    [mosra/magnum-integration#96](https://github.com/mosra/magnum-integration/pull/96)
+    and [mosra/magnum-integration#122](https://github.com/mosra/magnum-integration/pull/122))
 
 @subsection changelog-integration-latest-changes Changes and improvements
 
@@ -72,15 +84,20 @@ namespace Magnum {
     [mosra/magnum-integration#87](https://github.com/mosra/magnum-integration/issues/87),
     [mosra/magnum-integration#91](https://github.com/mosra/magnum-integration/issues/91)
     and [mosra/magnum-integration#93](https://github.com/mosra/magnum-integration/pull/93))
+-   @ref ImGuiIntegration::Context now supports dynamic texture updates
+    introduced in ImGui 1.92 (see
+    [mosra/magnum-integration#119](https://github.com/mosra/magnum-integration/pull/119))
 -   Added support for draw list user callbacks to @ref ImGuiIntegration
     (see [mosra/magnum-integration#83](https://github.com/mosra/magnum-integration/issues/83),
     [mosra/magnum-integration#84](https://github.com/mosra/magnum-integration/pull/84)
     and [mosra/magnum-integration#98](https://github.com/mosra/magnum-integration/pull/98))
 -   Fixed @ref ImGuiIntegration to work with ImGui 1.89 and
     `IMGUI_DISABLE_OBSOLETE_FUNCTIONS` set (see [mosra/magnum-integration#100](https://github.com/mosra/magnum-integration/pull/100))
--   Updated @ref ImGuiIntegration::imageButton() to work with ImGui 1.89+ (see
-    [mosra/magnum-integration#109](https://github.com/mosra/magnum-integration/pull/109)
-    and [mosra/magnum-integration#110](https://github.com/mosra/magnum-integration/pull/110))
+-   Updated @ref ImGuiIntegration::image() and
+    @ref ImGuiIntegration::imageButton() to work with ImGui 1.89+ (see
+    [mosra/magnum-integration#109](https://github.com/mosra/magnum-integration/pull/109),
+    [mosra/magnum-integration#110](https://github.com/mosra/magnum-integration/pull/110)
+    and [mosra/magnum-integration#119](https://github.com/mosra/magnum-integration/pull/119))
 -   The @ref ImGuiIntegration::Context::handlePointerPressEvent(),
     @relativeref{ImGuiIntegration::Context,handlePointerReleaseEvent()},
     @relativeref{ImGuiIntegration::Context,handlePointerMoveEvent()} and
@@ -88,6 +105,11 @@ namespace Magnum {
     with the new application pointer events now propagate also the event
     source to ImGui 1.89.5+, describing whether it's a mouse, touch input or a
     pen
+-   @ref ImGuiIntegration::Context::updateApplicationCursor() now supports
+    setting the mouse cursor position when constructed with the new templated
+    constructors and passing an application instance that supports
+    @ref Platform::Sdl2Application::setCursor() "Platform::*Application::setCursor()"
+    (see [mosra/magnum-integration#102](https://github.com/mosra/magnum-integration/pull/102))
 
 @subsection changelog-integration-latest-buildsystem Build system
 
@@ -142,6 +164,7 @@ namespace Magnum {
 -   Created a RPM package with a helper script for building (see
     [mosra/magnum-integration#113](https://github.com/mosra/magnum-integration/pull/113))
 -   Fixed the MSYS development package name (see [mosra/magnum-integration#116](https://github.com/mosra/magnum-integration/issues/116))
+-   Added a static build on the CIs (see [mosra/magnum-integration#80](https://github.com/mosra/magnum-integration/pull/80))
 
 @subsection changelog-integration-latest-bugfixes Bug fixes
 
@@ -156,10 +179,12 @@ namespace Magnum {
 @subsection changelog-integration-latest-deprecated Deprecated APIs
 
 -   All @ref building-integration-features "CMake build options" are now
-    prefixed with `MAGNUM_`. For backwards compatibility, unless
-    @ref MAGNUM_BUILD_DEPRECATED is disabled and unless a prefixed option is
-    already set during the initial run, the unprefixed options are still
-    recognized with a warning. See also [mosra/corrade#139](https://github.com/mosra/corrade/issues/139).
+    prefixed with `MAGNUM_`. All `WITH_` options are now also suffixed with
+    `INTEGRATION` for clarity, so instead of e.g. `WITH_BULLET` it's now
+    `MAGNUM_WITH_BULLETINTEGRATION`. For backwards compatibility, unless
+    @ref MAGNUM_BUILD_DEPRECATED is disabled and unless a prefixed / suffixed
+    option is already set during the initial run, the unprefixed & unsuffixed
+    options are still recognized with a warning. See also [mosra/corrade#139](https://github.com/mosra/corrade/issues/139).
 -   @cpp ImGuiIntegration::Context::handleMousePressEvent() @ce,
     @cpp handleMouseReleaseEvent() @ce, @cpp handleMouseMoveEvent() @ce and
     @cpp handleMouseScrollEvent() @ce that operated with the now-deprecated
@@ -186,6 +211,8 @@ namespace Magnum {
     code. See also [mosra/magnum#476](https://github.com/mosra/magnum/issues/476),
     [mosra/magnum-integration#108](https://github.com/mosra/magnum-integration/issues/108)
     and [mosra/magnum-integration#112](https://github.com/mosra/magnum-integration/pull/112).
+-   Removed the `Magnum/OvrIntegration/Conversion.h` header that was deprecated
+    in 2019.01, use `Magnum/OvrIntegration/Integration.h` instead
 
 @subsection changelog-integration-latest-documentation Documentation
 
@@ -281,7 +308,7 @@ Released 2019-10-24, tagged as
     [mosra/magnum#357](https://github.com/mosra/magnum/issues/357) and
     [mosra/magnum-plugins#63](https://github.com/mosra/magnum-plugins/issues/63).
 -   New @ref EigenIntegration library, providing conversion of math types from
-    and to [Eigen](http://eigen.tuxfamily.org/) APIs (see
+    and to [Eigen](https://eigen.tuxfamily.org/) APIs (see
     [mosra/magnum-integration#40](https://github.com/mosra/magnum-integration/pull/40))
 -   New @ref ImGuiIntegration::imageButton() widget for drawing an image button
     out of @ref GL::Texture2D (see [mosra/magnum-integration#38](https://github.com/mosra/magnum-integration/pull/38))
@@ -395,7 +422,7 @@ Released 2019-02-04, tagged as
 
 -   The `Magnum/OvrIntegration/Conversion.h` header name was not consistent
     with other libraries and thus is deprecated, use
-    @ref Magnum/OvrIntegration/Integration.h instead
+    `Magnum/OvrIntegration/Integration.h` instead
 
 @subsection changelog-integration-2019-01-compatibility Potential compatibility breakages, removed APIs
 
@@ -422,8 +449,8 @@ Released 2018-10-23, tagged as
 
 @subsection changelog-integration-2018-10-changes Changes and improvements
 
--   Updated the @ref OvrIntegration library to work with OVR SDK 1.17 and newer
-    and adapted it to work with latest changes in the @ref GL library
+-   Updated the @cpp OvrIntegration @ce library to work with OVR SDK 1.17 and
+    newer and adapted it to work with latest changes in the @ref GL library
     (see [mosra/magnum-integration#26](https://github.com/mosra/magnum-integration/pull/26)
     and [mosra/magnum-integration#32](https://github.com/mosra/magnum-integration/pull/32))
 -   It's now possible to construct @ref BulletIntegration::DebugDraw without an

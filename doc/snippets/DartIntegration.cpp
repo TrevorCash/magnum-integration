@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Konstantinos Chatzilygeroudis <costashatz@gmail.com>
 
@@ -26,10 +26,10 @@
 */
 
 #include <dart/simulation/World.hpp>
+#include <Magnum/SceneGraph/Scene.h>
+#include <Magnum/SceneGraph/Object.h>
+#include <Magnum/SceneGraph/MatrixTransformation3D.h>
 
-#include "Magnum/SceneGraph/Scene.h"
-#include "Magnum/SceneGraph/Object.h"
-#include "Magnum/SceneGraph/MatrixTransformation3D.h"
 #include "Magnum/DartIntegration/World.h"
 
 #define DOXYGEN_ELLIPSIS(...) __VA_ARGS__

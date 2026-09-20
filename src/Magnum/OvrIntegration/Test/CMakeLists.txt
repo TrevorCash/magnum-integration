@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 #
@@ -30,4 +30,4 @@
 set(CMAKE_FOLDER "Magnum/OvrIntegration/Test")
 
 corrade_add_test(OvrIntegrationTest IntegrationTest.cpp LIBRARIES MagnumOvrIntegration)
-corrade_add_test(OvrEnumsTest EnumsTest.cpp LIBRARIES MagnumOvrIntegration)
+corrade_add_test(OvrIntegrationEnumsTest EnumsTest.cpp LIBRARIES MagnumOvrIntegration)

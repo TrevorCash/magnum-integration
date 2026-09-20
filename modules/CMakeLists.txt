@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a
@@ -33,19 +33,19 @@ set(MagnumIntegration_MODULES
 # FindMagnumIntegration.cmake to avoid breakages when the directory contains
 # only that new module.
 set(MagnumIntegration_DEPENDENCY_MODULES )
-if(MAGNUM_WITH_BULLET)
+if(MAGNUM_WITH_BULLETINTEGRATION)
     list(APPEND MagnumIntegration_DEPENDENCY_MODULES
         FindBullet.cmake)
 endif()
-if(MAGNUM_WITH_GLM)
+if(MAGNUM_WITH_GLMINTEGRATION)
     list(APPEND MagnumIntegration_DEPENDENCY_MODULES
         FindGLM.cmake)
 endif()
-if(MAGNUM_WITH_IMGUI)
+if(MAGNUM_WITH_IMGUIINTEGRATION)
     list(APPEND MagnumIntegration_DEPENDENCY_MODULES
         FindImGui.cmake)
 endif()
-if(MAGNUM_WITH_OVR)
+if(MAGNUM_WITH_OVRINTEGRATION)
     list(APPEND MagnumIntegration_DEPENDENCY_MODULES
         FindOVR.cmake)
 endif()

@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2018 Konstantinos Chatzilygeroudis <costashatz@gmail.com>
 #   Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
@@ -71,20 +71,23 @@ find_package(Magnum REQUIRED)
 
 include(CMakeDependentOption)
 
-# Options that used to be unprefixed. New options shouldn't be added to this
-# list.
+# Options that used to be unprefixed / unsuffixed. New options shouldn't be
+# added to these lists. (Yes, I first changed WITH_BLAH to MAGNUM_WITH_BLAH,
+# two+ years passed, and then I realized I should change to
+# MAGNUM_WITH_BLAHINTEGRATION to avoid confusion. Sorry it took two steps.)
 set(_MAGNUMINTEGRATION_DEPRECATED_UNPREFIXED_OPTIONS
-    WITH_BULLET
-    WITH_DART
-    WITH_EIGEN
-    WITH_GLM
-    WITH_IMGUI
-    WITH_OVR
     USE_EMSCRIPTEN_PORTS_BULLET
     BUILD_STATIC
     BUILD_STATIC_PIC
     BUILD_TESTS
     BUILD_GL_TESTS)
+set(_MAGNUMINTEGRATION_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS
+    WITH_BULLET
+    WITH_DART
+    WITH_EIGEN
+    WITH_GLM
+    WITH_IMGUI
+    WITH_OVR)
 # If during the first run (i.e., when the variable isn't in cache yet), check
 # if any of the prefixed options are already set, except for BUILD_STATIC which
 # may already be coming from Magnum's configure.h. If so, we assume the user is
@@ -101,19 +104,31 @@ if(NOT DEFINED _MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_OPTIONS)
         endif()
     endforeach()
 endif()
+if(NOT DEFINED _MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS)
+    set(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS ON CACHE INTERNAL "")
+    foreach(option ${_MAGNUMINTEGRATION_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS})
+        if(DEFINED MAGNUM_${option}INTEGRATION)
+            set(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS OFF CACHE INTERNAL "")
+            break()
+        endif()
+    endforeach()
+endif()
 
 # Parts of the library
-option(MAGNUM_WITH_BULLET "Build BulletIntegration library" OFF)
-option(MAGNUM_WITH_DART "Build DartIntegration library" OFF)
-option(MAGNUM_WITH_EIGEN "Build EigenIntegration library" OFF)
-option(MAGNUM_WITH_GLM "Build GlmIntegration library" OFF)
-option(MAGNUM_WITH_IMGUI "Build ImGuiIntegration library" OFF)
-option(MAGNUM_WITH_OVR "Build OvrIntegration library" OFF)
+option(MAGNUM_WITH_BULLETINTEGRATION "Build BulletIntegration library" OFF)
+option(MAGNUM_WITH_DARTINTEGRATION "Build DartIntegration library" OFF)
+option(MAGNUM_WITH_EIGENINTEGRATION "Build EigenIntegration library" OFF)
+option(MAGNUM_WITH_GLMINTEGRATION "Build GlmIntegration library" OFF)
+option(MAGNUM_WITH_IMGUIINTEGRATION "Build ImGuiIntegration library" OFF)
+if(MAGNUM_BUILD_DEPRECATED)
+    option(MAGNUM_WITH_OVRINTEGRATION "Build OvrIntegration library" OFF)
+endif()
+option(MAGNUM_WITH_YOGAINTEGRATION "Build YogaIntegration library" OFF)
 
 # Library-specific options. This one uses the `SHELL:` option from CMake 3.12
 # and target_link_options() from 3.13 in order to pass `-s USE_BULLET=1` to
 # both the compiler and linker without it being split into two parts and passed
-# through an unique filter.
+# through a unique filter.
 if(CORRADE_TARGET_EMSCRIPTEN AND NOT CMAKE_VERSION VERSION_LESS 3.13)
     option(MAGNUM_USE_EMSCRIPTEN_PORTS_BULLET "Use Bullet from emscripten-ports instead of looking for it elsewhere (warning: likely an outdated version)" OFF)
 else()
@@ -142,16 +157,20 @@ cmake_dependent_option(MAGNUM_BUILD_STATIC_PIC "Build static libraries with posi
 option(MAGNUM_BUILD_TESTS "Build unit tests" OFF)
 cmake_dependent_option(MAGNUM_BUILD_GL_TESTS "Build unit tests for OpenGL code" OFF "MAGNUM_BUILD_TESTS" OFF)
 
-# Backwards compatibility for unprefixed CMake options. If the user isn't
-# explicitly using prefixed options in the first run already, accept the
-# unprefixed options, and remember this decision for subsequent runs
+# Backwards compatibility for unprefixed / unsuffixed CMake options. If the
+# user isn't explicitly using prefixed options in the first run already, accept
+# the unprefixed / unsuffixed options, and remember this decision for
+# subsequent runs.
 if(NOT DEFINED _MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_OPTIONS)
     set(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_OPTIONS ON CACHE INTERNAL "")
 endif()
-# If the user wasn't explicitly using prefixed options in the first run and the
-# MAGNUM_BUILD_DEPRECATED option is not currently disabled (which can get
-# changed subsequently), accept the unprefixed options and print a warning if
-# they're different from the prefixed ones.
+if(NOT DEFINED _MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS)
+    set(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS ON CACHE INTERNAL "")
+endif()
+# If the user wasn't explicitly using prefixed / suffixed options in the first
+# run and the MAGNUM_BUILD_DEPRECATED option is not currently disabled (which
+# can get changed subsequently), accept the unprefixed options and print a
+# warning if they're different from the prefixed / suffixed ones.
 if(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_OPTIONS AND MAGNUM_BUILD_DEPRECATED)
     # The following variables need extra care -- mirroring what's done in
     # cmake_dependent_option(), but only the cases that enable a dependency
@@ -196,6 +215,38 @@ if(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_OPTIONS AND MAGNUM_BUILD_DEPR
         message(DEPRECATION "Unprefixed options such as ${_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_OPTION} are deprecated, use MAGNUM_${_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_OPTION} instead. Delete the unprefixed variable from CMake cache or set both to the same value to silence this warning.")
     endif()
 endif()
+# Same handling for the unprefixed *and* unsuffixed options, omitting comments
+# for terseness. See above for details.
+if(_MAGNUMINTEGRATION_ACCEPT_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS AND MAGNUM_BUILD_DEPRECATED)
+    set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION )
+    set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION_REPLACEMENT )
+    foreach(option ${_MAGNUMINTEGRATION_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTIONS})
+        if(DEFINED ${option})
+            if((${option} AND NOT MAGNUM_${option}INTEGRATION) OR
+               (NOT ${option} AND MAGNUM_${option}INTEGRATION) AND NOT _MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION)
+                set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION ${option})
+                set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION_REPLACEMENT MAGNUM_${option}INTEGRATION)
+            endif()
+            set(MAGNUM_${option}INTEGRATION ${${option}})
+            set(${option} ${${option}} CACHE BOOL "Deprecated, use MAGNUM_${option}INTEGRATION instead" FORCE)
+        endif()
+        # Well, now there can be also MAGNUM_WITH_BLAH instead of just
+        # WITH_BLAH, handle that too
+        if(DEFINED MAGNUM_${option})
+            if((MAGNUM_${option} AND NOT MAGNUM_${option}INTEGRATION) OR
+               (NOT MAGNUM_${option} AND MAGNUM_${option}INTEGRATION) AND NOT _MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION)
+                set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION MAGNUM_${option})
+                set(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION_REPLACEMENT MAGNUM_${option}INTEGRATION)
+            endif()
+            set(MAGNUM_${option}INTEGRATION ${MAGNUM_${option}})
+            set(MAGNUM_${option} ${MAGNUM_${option}} CACHE BOOL "Deprecated, use MAGNUM_${option}INTEGRATION instead" FORCE)
+        endif()
+    endforeach()
+
+    if(_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION)
+        message(DEPRECATION "Unprefixed & unsuffixed options such as ${_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION} are deprecated, use ${_MAGNUMINTEGRATION_WARN_DEPRECATED_UNPREFIXED_UNSUFFIXED_OPTION_REPLACEMENT} instead. Delete the unprefixed & unsuffixed variable from CMake cache or set both to the same value to silence this warning.")
+    endif()
+endif()
 
 if(MAGNUM_BUILD_TESTS)
     find_package(Corrade REQUIRED TestSuite)
@@ -227,7 +278,8 @@ else()
     set(SHARED_OR_STATIC STATIC)
 endif()
 
-set(MAGNUMINTEGRATION_CMAKE_MODULE_INSTALL_DIR share/cmake/MagnumIntegration)
+# Assumes GNUInstallDirs was included by FindMagnum above
+set(MAGNUMINTEGRATION_CMAKE_MODULE_INSTALL_DIR ${CMAKE_INSTALL_DATADIR}/cmake/MagnumIntegration)
 
 # Library version. MAGNUMINTEGRATION_VERSION_YEAR/MONTH is used in
 # src/Magnum/CMakeLists.txt to generate the versionIntegration.h header.

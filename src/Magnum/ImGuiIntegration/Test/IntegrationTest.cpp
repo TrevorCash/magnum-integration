@@ -2,9 +2,11 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
+    Copyright © 2022 Hugo Amiard <hugo.amiard@wonderlandengine.com>
+    Copyright © 2026 Pablo Escobar <mail@rvrs.in>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -26,6 +28,7 @@
 */
 
 #include <Corrade/TestSuite/Tester.h>
+#include <Corrade/TestSuite/Compare/Numeric.h>
 #include <Magnum/Magnum.h>
 #include <Magnum/Math/Color.h>
 
@@ -36,6 +39,9 @@ namespace Magnum { namespace ImGuiIntegration { namespace Test { namespace {
 struct IntegrationTest: TestSuite::Tester {
     explicit IntegrationTest();
 
+    #ifdef IMGUI_HAS_IMSTR
+    void stringView();
+    #endif
     void vector2();
     void vector4();
     void color();
@@ -43,11 +49,65 @@ struct IntegrationTest: TestSuite::Tester {
 };
 
 IntegrationTest::IntegrationTest() {
-    addTests({&IntegrationTest::vector2,
+    addTests({
+              #ifdef IMGUI_HAS_IMSTR
+              &IntegrationTest::stringView,
+              #endif
+              &IntegrationTest::vector2,
               &IntegrationTest::vector4,
               &IntegrationTest::color,
               &IntegrationTest::colorLiterals});
 }
+
+#ifdef IMGUI_HAS_IMSTR
+void IntegrationTest::stringView() {
+    using namespace Containers;
+
+    StringView stringView{"Hello Corrade!"};
+    ImStrv imStrv{"Hello ImGui!"};
+
+    /* ImStrv -> StringView */
+    StringView viewFromImStrv(imStrv);
+    CORRADE_COMPARE(viewFromImStrv.begin(), imStrv.Begin);
+    CORRADE_COMPARE(viewFromImStrv.end(), imStrv.End);
+    CORRADE_COMPARE(viewFromImStrv.size(), imStrv.length());
+
+    /* StringView -> ImStrv */
+    ImStrv fromStringView(stringView);
+    CORRADE_COMPARE(fromStringView.Begin, stringView.begin());
+    CORRADE_COMPARE(fromStringView.End, stringView.end());
+    CORRADE_COMPARE(fromStringView.length(), stringView.size());
+
+    /* MutableStringView -> ImStrv */
+    char mutableString[]{"Hello Mutable!"};
+    MutableStringView mutableStringView{mutableString};
+    ImStrv fromMutable{mutableStringView};
+    CORRADE_COMPARE(fromMutable.Begin, mutableStringView.begin());
+    CORRADE_COMPARE(fromMutable.End, mutableStringView.end());
+    CORRADE_COMPARE(fromMutable.length(), mutableStringView.size());
+
+    /* An ImStrv should never be convertible to a mutable view. Not using
+       is_convertible to catch also accidental explicit conversions. */
+    CORRADE_VERIFY(std::is_constructible<StringView, ImStrv>::value);
+    CORRADE_VERIFY(!std::is_constructible<MutableStringView, ImStrv>::value);
+
+    /* String -> ImStrv */
+    String string{"Hello String!"};
+    ImStrv fromString(string);
+    CORRADE_COMPARE(fromString.Begin, string.begin());
+    CORRADE_COMPARE(fromString.End, string.end());
+    CORRADE_COMPARE(fromString.length(), string.size());
+
+    /* ImStrv -> String (data copy) */
+    String stringFromImStrv(imStrv);
+    CORRADE_COMPARE(stringFromImStrv, StringView{imStrv});
+    /* Copy, not a non-owned view */
+    CORRADE_COMPARE_AS(stringFromImStrv.begin(), imStrv.Begin,
+        TestSuite::Compare::NotEqual);
+    CORRADE_COMPARE_AS(stringFromImStrv.end(), imStrv.End,
+        TestSuite::Compare::NotEqual);
+}
+#endif
 
 void IntegrationTest::vector2() {
     ImVec2 imVec2{1.1f, 1.2f};

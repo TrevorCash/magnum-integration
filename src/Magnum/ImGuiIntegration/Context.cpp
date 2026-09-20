@@ -2,14 +2,15 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 ShaddyAQN <ShaddyAQN@gmail.com>
     Copyright © 2018 Tomáš Skřivan <skrivantomas@seznam.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
     Copyright © 2019 bowling-allie <allie.smith.epic@gmail.com>
     Copyright © 2021 Juan Pedro Bolívar Puente <raskolnikov@gnu.org>
-    Copyright © 2022, 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2022, 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2023 Jordan Peck <jordan.me2@gmail.com>
     Copyright © 2024 kolbbond <kolbbond@gmail.com>
 
     Permission is hereby granted, free of charge, to any person obtaining a
@@ -38,6 +39,7 @@
 #include <Corrade/Containers/Reference.h>
 #include <Corrade/Utility/Resource.h>
 #include <Magnum/ImageView.h>
+#include <Magnum/PixelFormat.h>
 #include <Magnum/GL/Context.h>
 #include <Magnum/GL/DefaultFramebuffer.h>
 #include <Magnum/GL/Extensions.h>
@@ -48,11 +50,117 @@
 #include <Magnum/GL/TextureFormat.h>
 #include <Magnum/GL/Version.h>
 #include <Magnum/Math/Matrix3.h>
+#include <Magnum/Math/Range.h>
 
 #include "Magnum/ImGuiIntegration/Integration.h"
 #include "Magnum/ImGuiIntegration/Widgets.h"
 
+#ifdef IMGUI_HAS_TEXTURES
+#include <imgui_internal.h> /* GetPlatformIO(ImGuiContext*) */
+#endif
+
 namespace Magnum { namespace ImGuiIntegration {
+
+namespace {
+
+#ifdef IMGUI_HAS_TEXTURES
+void createTexture(ImTextureData& texture);
+void updateTexture(ImTextureData& texture, const Range2Di& rect);
+void destroyTexture(ImTextureData& texture);
+
+void createTexture(ImTextureData& texture) {
+    CORRADE_INTERNAL_ASSERT(texture.Format == ImTextureFormat_Alpha8 || texture.Format == ImTextureFormat_RGBA32);
+    /* We don't support single-channel textures on GLES2/WebGL:
+       - need swizzling support to reuse shaders reading alpha for transparency
+       - ES2 without EXT_texture_rg has no R8 format. We could emulate this
+         with LuminanceAlpha without swizzling, but that doesn't exist on
+         WebGL2, so there we'd have no way to get around the missing swizzling. */
+    #if defined(MAGNUM_TARGET_GLES2) || defined(MAGNUM_TARGET_WEBGL)
+    CORRADE_ASSERT(texture.Format != ImTextureFormat_Alpha8,
+        "Single-channel textures not supported in OpenGL ES 2.0 or WebGL", );
+    #endif
+    CORRADE_INTERNAL_ASSERT(texture.GetTexID() == ImTextureID_Invalid);
+    const Vector2i size{texture.Width, texture.Height};
+
+    const PixelFormat pixelFormat = texture.Format == ImTextureFormat_RGBA32 ?
+        PixelFormat::RGBA8Unorm : PixelFormat::R8Unorm;
+    /* Will be an unsized format on GLES2 for setImage() */
+    const GL::TextureFormat textureFormat = GL::textureFormat(pixelFormat);
+
+    GL::Texture2D glTexture;
+    glTexture
+        .setMinificationFilter(SamplerFilter::Linear)
+        .setMagnificationFilter(SamplerFilter::Linear)
+        .setWrapping(GL::SamplerWrapping::ClampToEdge)
+        #ifndef MAGNUM_TARGET_GLES2
+        .setStorage(1, textureFormat, size)
+        #else
+        .setImage(0, textureFormat, ImageView2D{pixelFormat, size})
+        #endif
+        ;
+
+    #if !(defined(MAGNUM_TARGET_GLES2) || defined(MAGNUM_TARGET_WEBGL))
+    if(texture.Format == ImTextureFormat_Alpha8)
+        glTexture.setSwizzle<'1', '1', '1', 'r'>();
+    #endif
+
+    const ImTextureID id = ImTextureID(glTexture.release());
+    texture.SetTexID(id);
+
+    updateTexture(texture, Range2Di::fromSize({}, size));
+    texture.SetStatus(ImTextureStatus_OK);
+}
+
+void updateTexture(ImTextureData& texture, const Range2Di& rect) {
+    /* On ES2 without EXT_unpack_subimage and on WebGL 1 there's no possibility
+       to upload just a slice of the input, upload the whole image instead */
+    Vector2i offset{NoInit};
+    Vector2i size{NoInit};
+    PixelStorage storage;
+    /* Data is tightly packed */
+    storage.setAlignment(1);
+    #ifdef MAGNUM_TARGET_GLES2
+    #ifndef MAGNUM_TARGET_WEBGL
+    if(!GL::Context::current().isExtensionSupported<GL::Extensions::EXT::unpack_subimage>())
+    #endif
+    {
+        offset = {};
+        size = {texture.Width, texture.Height};
+        static_cast<void>(rect);
+    }
+    #ifndef MAGNUM_TARGET_WEBGL
+    else
+    #endif
+    #endif
+    #if !(defined(MAGNUM_TARGET_GLES2) && defined(MAGNUM_TARGET_WEBGL))
+    {
+        offset = rect.min();
+        size = rect.size();
+        storage.setRowLength(texture.Width);
+        storage.setSkip({offset.x(), offset.y(), 0});
+    }
+    #endif
+
+    const auto data = Containers::arrayView(texture.GetPixels(), texture.GetSizeInBytes());
+    const PixelFormat pixelFormat = texture.Format == ImTextureFormat_RGBA32 ?
+        PixelFormat::RGBA8Unorm : PixelFormat::R8Unorm;
+    const ImageView2D imageView{storage, pixelFormat, size, data};
+
+    GL::Texture2D glTexture = GL::Texture2D::wrap(GLuint(texture.GetTexID()), GL::ObjectFlag::Created);
+    glTexture.setSubImage(0, offset, imageView);
+    texture.SetStatus(ImTextureStatus_OK);
+}
+
+void destroyTexture(ImTextureData& texture) {
+    /* Temporary wrapped Texture2D is deleted at the end of the next line */
+    GL::Texture2D::wrap(GLuint(texture.GetTexID()),
+        GL::ObjectFlag::Created|GL::ObjectFlag::DeleteOnDestruction);
+    texture.SetTexID(ImTextureID_Invalid);
+    texture.SetStatus(ImTextureStatus_Destroyed);
+}
+#endif
+
+}
 
 Context::Context(const Vector2& size, const Vector2i& windowSize, const Vector2i& framebufferSize): Context{*ImGui::CreateContext(), size, windowSize, framebufferSize} {}
 
@@ -65,6 +173,11 @@ Context::Context(ImGuiContext& context, const Vector2& size, const Vector2i& win
 {
     /* Ensure we use the context we're linked to */
     ImGui::SetCurrentContext(&context);
+
+    /* Verify ABI compatibility with the linked ImGui. Helps detect config
+       mismatches, e.g. IMGUI_DISABLE_OBSOLETE_FUNCTIONS only defined in user
+       code, but not while building ImGui. */
+    IMGUI_CHECKVERSION();
 
     ImGuiIO &io = ImGui::GetIO();
 
@@ -91,7 +204,25 @@ Context::Context(ImGuiContext& context, const Vector2& size, const Vector2i& win
     }
     #endif
 
-    /** @todo Set clipboard text once Platform supports it */
+    /* Support dynamic texture uploads */
+    #ifdef IMGUI_HAS_TEXTURES
+    /* Also used in the block below, gated on 1.92.8. IMGUI_HAS_TEXTURES was
+       added before 1.92. */
+    ImGuiPlatformIO& platformIO = ImGui::GetPlatformIO();
+    io.BackendFlags |= ImGuiBackendFlags_RendererHasTextures;
+    const Vector2i maxTextureSize = GL::Texture2D::maxSize();
+    platformIO.Renderer_TextureMaxWidth = maxTextureSize.x();
+    platformIO.Renderer_TextureMaxHeight = maxTextureSize.y();
+    #endif
+
+    /* Set up drawing callbacks, passed by users to ImDrawList::AddCallback() */
+    #if IMGUI_VERSION_NUM >= 19280
+    /* We do not have anything to do here. AddCallback() asserts if the
+       callback is nullptr, so the user needs to check (consistent with ImGui's
+       own demo code). But we also check for nullptr in drawFrame() anyway. */
+    platformIO.DrawCallback_ResetRenderState = nullptr;
+    /** @todo Support SetSamplerLinear and SetSamplerNearest */
+    #endif
 
     /* Set up framebuffer sizes, font supersampling etc. and upload the glyph
        cache */
@@ -110,14 +241,30 @@ Context::Context(ImGuiContext& context, const Vector2& size, const Vector2i& win
 
 Context::Context(ImGuiContext& context, const Vector2i& size): Context{context, Vector2{size}, size, size} {}
 
-Context::Context(NoCreateT) noexcept: _context{nullptr}, _shader{NoCreate}, _texture{NoCreate}, _vertexBuffer{NoCreate}, _indexBuffer{NoCreate}, _mesh{NoCreate} {}
+Context::Context(NoCreateT) noexcept: _context{nullptr}, _shader{NoCreate}, _vertexBuffer{NoCreate}, _indexBuffer{NoCreate}, _mesh{NoCreate}
+#if !defined(IMGUI_HAS_TEXTURES) || defined(MAGNUM_BUILD_DEPRECATED)
+, _texture{NoCreate}
+#endif
+{}
 
-Context::Context(Context&& other) noexcept: _context{other._context}, _shader{Utility::move(other._shader)}, _texture{Utility::move(other._texture)}, _vertexBuffer{Utility::move(other._vertexBuffer)}, _indexBuffer{Utility::move(other._indexBuffer)}, _timeline{Utility::move(other._timeline)}, _mesh{Utility::move(other._mesh)}, _supersamplingRatio{other._supersamplingRatio}, _eventScaling{other._eventScaling} {
+Context::Context(Context&& other) noexcept: _context{other._context}, _shader{Utility::move(other._shader)}, _vertexBuffer{Utility::move(other._vertexBuffer)}, _indexBuffer{Utility::move(other._indexBuffer)}, _timeline{Utility::move(other._timeline)}, _mesh{Utility::move(other._mesh)}, _supersamplingRatio{other._supersamplingRatio}, _eventScaling{other._eventScaling}
+#if !defined(IMGUI_HAS_TEXTURES) || defined(MAGNUM_BUILD_DEPRECATED)
+, _texture{Utility::move(other._texture)}
+#endif
+{
     other._context = nullptr;
 }
 
 Context::~Context() {
     if(_context) {
+        #ifdef IMGUI_HAS_TEXTURES
+        for(ImTextureData* tex : ImGui::GetPlatformIO(_context).Textures) {
+            /* Only destroy textures used by a single context */
+            if(tex->RefCount == 1 && tex->GetTexID() != ImTextureID_Invalid)
+                destroyTexture(*tex);
+        }
+        #endif
+
         /* Ensure we destroy the context we're linked to */
         ImGui::SetCurrentContext(_context);
         ImGui::DestroyContext();
@@ -128,13 +275,15 @@ Context& Context::operator=(Context&& other) noexcept {
     using Utility::swap;
     swap(_context, other._context);
     swap(_shader, other._shader);
-    swap(_texture, other._texture);
     swap(_vertexBuffer, other._vertexBuffer);
     swap(_indexBuffer, other._indexBuffer);
     swap(_timeline, other._timeline);
     swap(_mesh, other._mesh);
     swap(_supersamplingRatio, other._supersamplingRatio);
     swap(_eventScaling, other._eventScaling);
+    #if !defined(IMGUI_HAS_TEXTURES) || defined(MAGNUM_BUILD_DEPRECATED)
+    swap(_texture, other._texture);
+    #endif
     return *this;
 }
 
@@ -153,6 +302,9 @@ void Context::relayout(const Vector2& size, const Vector2i& windowSize, const Ve
        crisp enough look. This is the same as in Magnum::Ui::UserInterface. */
     const Vector2 supersamplingRatio = Vector2(framebufferSize)/size;
 
+    /* Need to use > 0.0f instead of just != 0 so we catch NaNs too */
+    const Vector2 nonZeroSupersamplingRatio = (supersamplingRatio > Vector2{0.0f}).all() ? supersamplingRatio : Vector2{1.0f};
+
     /* ImGui unfortunately expects that event coordinates == positioning
        coordinates, which means we have to scale the events like they would be
        related to `size` and not `windowSize`. */
@@ -160,7 +312,22 @@ void Context::relayout(const Vector2& size, const Vector2i& windowSize, const Ve
 
     ImGuiIO& io = ImGui::GetIO();
 
-    /* If the supersampling ratio changed, we need to regenerate the font. Do
+    /* Display size is the window size. Scaling of this to the actual window
+       and framebuffer size is done on the magnum side when rendering. */
+    io.DisplaySize = ImVec2(Vector2(size));
+    io.DisplayFramebufferScale = ImVec2{nonZeroSupersamplingRatio};
+
+    /* ImGui 1.92 and up support dynamic font rasterization based on
+       DisplayFramebufferScale. Textures are created and uploaded during
+       drawFrame(). Nothing else we have to do here, except load the default
+       font for convenience. This would only happen later in NewFrame(). */
+    #ifdef IMGUI_HAS_TEXTURES
+    if(io.Fonts->Fonts.empty())
+        io.Fonts->AddFontDefault();
+    #else
+    /* On older versions we need to build and upload the atlas manually.
+
+       If the supersampling ratio changed, we need to regenerate the font. Do
        that also if the fonts are not loaded yet -- that means these were
        supplied by the user after Context was created (or after last call to
        relayout()). */
@@ -170,11 +337,8 @@ void Context::relayout(const Vector2& size, const Vector2i& windowSize, const Ve
         break;
     }
     if(_supersamplingRatio != supersamplingRatio || !allFontsLoaded) {
-        /* Need to use > 0.0f instead of just != 0 so we catch NaNs too */
-        const Float nonZeroSupersamplingRatio = (supersamplingRatio.x() > 0.0f ? supersamplingRatio.x() : 1.0f);
-
         /* If there's no fonts yet (first run) or only one font and it's the
-           one we set earier (has the [SCALED] suffix), wipe it and replace
+           one we set earlier (has the [SCALED] suffix), wipe it and replace
            with a differently scaled version. Otherwise assume the fonts are
            user-supplied, do not touch them and just rebuild the cache. */
         if(io.Fonts->Fonts.empty() || (io.Fonts->Fonts.size() == 1 && std::strcmp(io.Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]") == 0)) {
@@ -187,14 +351,12 @@ void Context::relayout(const Vector2& size, const Vector2i& windowSize, const Ve
                the UI */
             ImFontConfig cfg;
             std::strcpy(cfg.Name, "ProggyClean.ttf, 13px [SCALED]");
-            cfg.SizePixels = 13.0f*nonZeroSupersamplingRatio;
+            cfg.SizePixels = 13.0f*nonZeroSupersamplingRatio.x();
             io.Fonts->AddFontDefault(&cfg);
         }
 
-        _supersamplingRatio = supersamplingRatio;
-
         /* Downscale back the upscaled font to achieve supersampling */
-        io.FontGlobalScale = 1.0f/nonZeroSupersamplingRatio;
+        io.FontGlobalScale = 1.0f/nonZeroSupersamplingRatio.x();
 
         unsigned char *pixels;
         int width, height;
@@ -223,13 +385,9 @@ void Context::relayout(const Vector2& size, const Vector2i& windowSize, const Ve
         /* Make the texture available through the ImFontAtlas */
         io.Fonts->SetTexID(textureId(_texture));
     }
+    #endif
 
-    /* Display size is the window size. Scaling of this to the actual window
-       and framebuffer size is done on the magnum side when rendering. */
-    io.DisplaySize = ImVec2(Vector2(size));
-    /* io.DisplayFramebufferScale is currently not used by imgui (1.66b), so
-       why bother */
-    /** @todo revisit when there's progress on https://github.com/ocornut/imgui/issues/1676 */
+    _supersamplingRatio = supersamplingRatio;
 }
 
 void Context::relayout(const Vector2i& size) {
@@ -265,21 +423,49 @@ void Context::drawFrame() {
 
     ImGui::Render();
 
-    ImGuiIO& io = ImGui::GetIO();
-    const Vector2 fbSize = Vector2{io.DisplaySize}*Vector2{io.DisplayFramebufferScale};
-    if(!fbSize.product()) return;
-
     ImDrawData* drawData = ImGui::GetDrawData();
     CORRADE_INTERNAL_ASSERT(drawData); /* This is always valid after Render() */
-    drawData->ScaleClipRects(io.DisplayFramebufferScale);
+
+    const Vector2 displaySize{drawData->DisplaySize};
+    if(!displaySize.product())
+        return;
+
+    /* Not calling drawData->ScaleClipRects() because user callbacks might
+       expect to read the original rects. This matches what the other built-in
+       backends do. We scale them manually below. */
+    const Vector2 fbScale{drawData->FramebufferScale};
+
+    #ifdef IMGUI_HAS_TEXTURES
+    if(drawData->Textures) {
+        for(ImTextureData* tex : *drawData->Textures) {
+            switch(tex->Status) {
+                case ImTextureStatus_WantCreate:
+                    createTexture(*tex);
+                    break;
+                case ImTextureStatus_WantUpdates: {
+                    const ImTextureRect& rect = tex->UpdateRect;
+                    updateTexture(*tex, Range2Di::fromSize({rect.x, rect.y}, {rect.w, rect.h}));
+                    break;
+                }
+                case ImTextureStatus_WantDestroy:
+                    destroyTexture(*tex);
+                    break;
+                case ImTextureStatus_OK:
+                case ImTextureStatus_Destroyed:
+                    /* Nothing to do */
+                    break;
+            }
+        }
+    }
+    #endif
 
     const Matrix3 projection =
         Matrix3::translation({-1.0f, 1.0f})*
-        Matrix3::scaling({2.0f/Vector2(io.DisplaySize)})*
+        Matrix3::scaling(2.0f/displaySize)*
         Matrix3::scaling({1.0f, -1.0f});
     _shader.setTransformationProjectionMatrix(projection);
 
-    for(std::int_fast32_t n = 0; n < drawData->CmdListsCount; ++n) {
+    for(std::int_fast32_t n = 0; n < drawData->CmdLists.Size; ++n) {
         const ImDrawList* cmdList = drawData->CmdLists[n];
 
         _vertexBuffer.setData(
@@ -295,17 +481,21 @@ void Context::drawFrame() {
             if(pcmd->UserCallback) {
                 /* User callback, registered via ImDrawList::AddCallback().
                    ImDrawCallback_ResetRenderState is a special callback value
-                   used by the user to request the renderer to reset render
-                   state. We do not have anything to do here though. */
+                   in older versions used by the user to request the renderer
+                   to reset render state, which shouldn't actually be called.
+                   Newer versions allow setting callbacks in ImGuiPlatformIO,
+                   those are callable or null and don't need an extra check. */
+                #if IMGUI_VERSION_NUM < 19280
                 if(pcmd->UserCallback != ImDrawCallback_ResetRenderState)
+                #endif
                     pcmd->UserCallback(cmdList, pcmd);
                 continue;
             }
 
             GL::Renderer::setScissor(Range2Di{Range2D{
-                {pcmd->ClipRect.x, fbSize.y() - pcmd->ClipRect.w},
-                {pcmd->ClipRect.z, fbSize.y() - pcmd->ClipRect.y}}
-                    .scaled(_supersamplingRatio)});
+                {pcmd->ClipRect.x, displaySize.y() - pcmd->ClipRect.w},
+                {pcmd->ClipRect.z, displaySize.y() - pcmd->ClipRect.y}}
+                    .scaled(fbScale)});
 
             /* Only > 0 if ImGuiBackendFlags_RendererHasVtxOffset is set */
             _mesh.setBaseVertex(pcmd->VtxOffset);
@@ -319,9 +509,9 @@ void Context::drawFrame() {
                around it, and assume it's already created */
             GL::Texture2D texture = GL::Texture2D::wrap(
                 #if IMGUI_VERSION_NUM >= 19131
-                pcmd->TextureId,
+                pcmd->GetTexID(),
                 #else
-                reinterpret_cast<std::uintptr_t>(pcmd->TextureId),
+                reinterpret_cast<std::uintptr_t>(pcmd->GetTexID()),
                 #endif
                 GL::ObjectFlag::Created);
 
@@ -335,7 +525,7 @@ void Context::drawFrame() {
        users would be required to disable the scissor right after as otherwise
        the framebuffer clear would only happen on whatever the last scissor
        was. (And I hope the floating-point precision is enough here.) */
-    GL::Renderer::setScissor(Range2Di{Range2D{{}, fbSize}.scaled(_supersamplingRatio)});
+    GL::Renderer::setScissor(Range2Di{Range2D{{}, displaySize}.scaled(fbScale)});
 }
 
 }}

@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 
@@ -24,6 +24,8 @@
     FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 */
+
+#define _MAGNUM_NO_DEPRECATED_OVRINTEGRATION
 
 #include <Corrade/Containers/String.h>
 #include <Corrade/TestSuite/Tester.h>
@@ -73,6 +75,7 @@ EnumTest::EnumTest() {
               &EnumTest::sessionStatusFlag});
 }
 
+CORRADE_IGNORE_DEPRECATED_PUSH
 void EnumTest::hmdType() {
     Containers::String out;
     Debug(&out) << HmdType::DK2;
@@ -221,6 +224,7 @@ void EnumTest::sessionStatusFlag() {
     Debug(&out) << SessionStatusFlag(-1);
     CORRADE_COMPARE(out, "OvrIntegration::SessionStatusFlag::(invalid)\n");
 }
+CORRADE_IGNORE_DEPRECATED_POP
 
 }}}}
 

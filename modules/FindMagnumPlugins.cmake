@@ -14,6 +14,7 @@
 #
 #  AssimpImporter               - Assimp importer
 #  AstcImporter                 - ASTC importer
+#  AvifImporter                 - AVIF importer
 #  BasisImageConverter          - Basis image converter
 #  BasisImporter                - Basis importer
 #  BcDecImageConverter          - BCn image decoder using bcdec
@@ -34,12 +35,14 @@
 #  JpegImporter                 - JPEG importer
 #  KtxImageConverter            - KTX image converter
 #  KtxImporter                  - KTX importer
+#  LunaSvgImporter              - SVG importer using LunaSVG
 #  MeshOptimizerSceneConverter  - MeshOptimizer scene converter
 #  MiniExrImageConverter        - OpenEXR image converter using miniexr
-#  OpenGexImporter              - OpenGEX importer
+#  PlutoSvgImporter             - SVG importer using PlutoSVG
 #  PngImageConverter            - PNG image converter
 #  PngImporter                  - PNG importer
 #  PrimitiveImporter            - Primitive importer
+#  ResvgImporter                - SVG importer using resvg
 #  SpirvToolsShaderConverter    - SPIR-V Tools shader converter
 #  SpngImporter                 - PNG importer using libspng
 #  StanfordImporter             - Stanford PLY importer
@@ -56,14 +59,11 @@
 #  WebPImporter                 - WebP importer
 #
 # If Magnum is built with MAGNUM_BUILD_DEPRECATED enabled, these additional
-# plugins are available for backwards compatibility purposes:
+# plugins and libraries are available for backwards compatibility purposes:
 #
 #  CgltfImporter                - glTF importer using cgltf
+#  OpenGexImporter              - OpenGEX importer
 #  TinyGltfImporter             - GLTF importer using tiny_gltf
-#
-# Some plugins expose their internal state through separate libraries. The
-# libraries are:
-#
 #  OpenDdl                      - OpenDDL parser, used as a base for the
 #   OpenGexImporter plugin
 #
@@ -95,7 +95,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2019 Jonathan Hale <squareys@googlemail.com>
 #
@@ -178,8 +178,8 @@ find_path(_MAGNUMPLUGINS_DEPENDENCY_MODULE_DIR
     NAMES
         FindAssimp.cmake FindBasisUniversal.cmake FindDevIL.cmake
         FindFAAD2.cmake FindGlslang.cmake FindHarfBuzz.cmake
-        FindOpenEXR.cmake FindSpirvTools.cmake FindSpng.cmake FindWebP.cmake
-        FindZstd.cmake
+        FindOpenEXR.cmake FindResvg.cmake FindSpirvTools.cmake FindSpng.cmake
+        FindWebP.cmake FindZstd.cmake
     PATH_SUFFIXES share/cmake/MagnumPlugins/dependencies)
 mark_as_advanced(_MAGNUMPLUGINS_DEPENDENCY_MODULE_DIR)
 
@@ -197,17 +197,16 @@ endif()
 
 # Component distinction (listing them explicitly to avoid mistakes with finding
 # components from other repositories)
-set(_MAGNUMPLUGINS_LIBRARY_COMPONENTS OpenDdl)
 set(_MAGNUMPLUGINS_PLUGIN_COMPONENTS
-    AssimpImporter AstcImporter BasisImageConverter BasisImporter
+    AssimpImporter AstcImporter AvifImporter BasisImageConverter BasisImporter
     BcDecImageConverter DdsImporter DevIlImageImporter DrFlacAudioImporter
     DrMp3AudioImporter DrWavAudioImporter EtcDecImageConverter
     Faad2AudioImporter FreeTypeFont GlslangShaderConverter GltfImporter
     GltfSceneConverter HarfBuzzFont IcoImporter JpegImageConverter JpegImporter
-    KtxImageConverter KtxImporter MeshOptimizerSceneConverter
+    KtxImageConverter KtxImporter LunaSvgImporter MeshOptimizerSceneConverter
     MiniExrImageConverter OpenExrImageConverter OpenExrImporter
-    OpenGexImporter PngImageConverter PngImporter PrimitiveImporter
-    SpirvToolsShaderConverter SpngImporter StanfordImporter
+    PlutoSvgImporter PngImageConverter PngImporter PrimitiveImporter
+    ResvgImporter SpirvToolsShaderConverter SpngImporter StanfordImporter
     StanfordSceneConverter StbDxtImageConverter StbImageConverter
     StbImageImporter StbResizeImageConverter StbTrueTypeFont
     StbVorbisAudioImporter StlImporter UfbxImporter WebPImageConverter
@@ -217,12 +216,14 @@ set(_MAGNUMPLUGINS_IMPLICITLY_ENABLED_COMPONENTS )
 
 # Inter-component dependencies
 set(_MAGNUMPLUGINS_HarfBuzzFont_DEPENDENCIES FreeTypeFont)
-set(_MAGNUMPLUGINS_OpenGexImporter_DEPENDENCIES OpenDdl)
 
-# CgltfImporter and TinyGltfImporter, available only on a deprecated build
+# CgltfImporter, OpenGexImporter, TinyGltfImporter and OpenDdl, available only
+# on a deprecated build
 if(MAGNUM_BUILD_DEPRECATED)
-    list(APPEND _MAGNUMPLUGINS_PLUGIN_COMPONENTS CgltfImporter TinyGltfImporter)
+    list(APPEND _MAGNUMPLUGINS_PLUGIN_COMPONENTS CgltfImporter OpenGexImporter TinyGltfImporter)
+    set(_MAGNUMPLUGINS_LIBRARY_COMPONENTS OpenDdl)
     set(_MAGNUMPLUGINS_CgltfImporter_DEPENDENCIES GltfImporter)
+    set(_MAGNUMPLUGINS_OpenGexImporter_DEPENDENCIES OpenDdl)
 endif()
 
 # Ensure that all inter-component dependencies are specified as well
@@ -263,6 +264,7 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
     else()
         # Find plugin/library includes. Each has a configure.h file so there
         # doesn't need to be any specialized per-library handling.
+        # TODO drop _MAGNUMPLUGINS_LIBRARY_COMPONENTS once OpenDdl is gone
         if(_component IN_LIST _MAGNUMPLUGINS_PLUGIN_COMPONENTS OR _component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS)
             if(_component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS)
                 set(_include_path_directory Magnum)
@@ -293,6 +295,7 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
         endif()
 
         # Library components
+        # TODO drop this once OpenDdl is gone
         if(_component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS)
             # Try to find both debug and release version
             find_library(MAGNUMPLUGINS_${_COMPONENT}_LIBRARY_DEBUG Magnum${_component}-d)
@@ -383,6 +386,7 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
         if(
             # If the component is a library or a plugin, it should have the
             # configure file
+            # TODO drop _MAGNUMPLUGINS_LIBRARY_COMPONENTS once OpenDdl is gone
             (_component IN_LIST _MAGNUMPLUGINS_PLUGIN_COMPONENTS OR _component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS) AND _MAGNUMPLUGINS_${_COMPONENT}_CONFIGURE_FILE AND (
                 # And it should have a debug library, and a DLL found if
                 # expected
@@ -401,6 +405,7 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
         endif()
 
         # Target and location for libraries
+        # TODO drop this once OpenDdl is gone
         if(_component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS)
             if(_MAGNUMPLUGINS_${_COMPONENT}_BUILD_STATIC)
                 add_library(MagnumPlugins::${_component} STATIC IMPORTED)
@@ -452,6 +457,13 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
                 INTERFACE_LINK_LIBRARIES Assimp::Assimp)
 
         # AstcImporter has no dependencies
+
+        # AvifImporter plugin dependencies
+        elseif(_component STREQUAL AvifImporter)
+            find_package(libavif CONFIG)
+            set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                # ffs, can't you fools namespace the target, at least?!
+                INTERFACE_LINK_LIBRARIES avif)
 
         # BasisImageConverter / BasisImporter has only compiled-in
         # dependencies, except in case of vcpkg, then we need to link to a
@@ -513,16 +525,37 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
 
         # FreeTypeFont plugin dependencies
         elseif(_component STREQUAL FreeTypeFont)
-            find_package(Freetype)
-            # Need to handle special cases where both debug and release
-            # libraries are available (in form of debug;A;optimized;B in
-            # FREETYPE_LIBRARIES), thus appending them one by one
-            if(FREETYPE_LIBRARY_DEBUG AND FREETYPE_LIBRARY_RELEASE)
+            # On Emscripten, FreeType could be taken from ports. If that's the
+            # case, propagate proper compiler flag.
+            if(CORRADE_TARGET_EMSCRIPTEN)
+                # The library-specific configure file was read above already
+                list(FIND _magnumPluginsConfigure "#define MAGNUM_USE_EMSCRIPTEN_PORTS_FREETYPE" _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_FREETYPE)
+                if(NOT _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_FREETYPE EQUAL -1)
+                    set(MAGNUM_USE_EMSCRIPTEN_PORTS_FREETYPE 1)
+                endif()
+            endif()
+
+            if(MAGNUM_USE_EMSCRIPTEN_PORTS_FREETYPE)
+                if(CMAKE_VERSION VERSION_LESS 3.13)
+                    message(FATAL_ERROR "${_component} was compiled against emscripten-ports version of FreeType but linking to it requires CMake 3.13 at least")
+                endif()
                 set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${FREETYPE_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${FREETYPE_LIBRARY_DEBUG}>")
+                    INTERFACE_COMPILE_OPTIONS "SHELL:-s USE_FREETYPE=1")
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "SHELL:-s USE_FREETYPE=1")
             else()
-                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES ${FREETYPE_LIBRARIES})
+                find_package(Freetype)
+                # Need to handle special cases where both debug and release
+                # libraries are available (in form of debug;A;optimized;B in
+                # FREETYPE_LIBRARIES), thus appending them one by one
+                # TODO use imported target when 3.10+ is the minimum
+                if(FREETYPE_LIBRARY_DEBUG AND FREETYPE_LIBRARY_RELEASE)
+                    set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                        INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${FREETYPE_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${FREETYPE_LIBRARY_DEBUG}>")
+                else()
+                    set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                        INTERFACE_LINK_LIBRARIES ${FREETYPE_LIBRARIES})
+                endif()
             endif()
 
         # GlslangShaderConverter plugin dependencies
@@ -534,41 +567,77 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
         # GltfImporter has no dependencies
         # GltfSceneConverter has no dependencies
 
-        # HarfBuzzFont plugin dependencies
+        # HarfBuzzFont plugin dependencies. It additionally depends on FreeType
+        # but that one should be brought in transitively by the FreeTypeFont
+        # dependency.
         elseif(_component STREQUAL HarfBuzzFont)
-            find_package(Freetype)
-            find_package(HarfBuzz)
-            # Need to handle special cases where both debug and release
-            # libraries are available (in form of debug;A;optimized;B in
-            # FREETYPE_LIBRARIES), thus appending them one by one
-            if(FREETYPE_LIBRARY_DEBUG AND FREETYPE_LIBRARY_RELEASE)
-                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${FREETYPE_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${FREETYPE_LIBRARY_DEBUG}>")
-            else()
-                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES ${FREETYPE_LIBRARIES})
+            # On Emscripten, HarfBuzz could be taken from ports. If that's the
+            # case, propagate proper compiler flag.
+            if(CORRADE_TARGET_EMSCRIPTEN)
+                list(FIND _magnumPluginsConfigure "#define MAGNUM_USE_EMSCRIPTEN_PORTS_HARFBUZZ" _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_HARFBUZZ)
+                if(NOT _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_HARFBUZZ EQUAL -1)
+                    set(MAGNUM_USE_EMSCRIPTEN_PORTS_HARFBUZZ 1)
+                endif()
             endif()
-            set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES HarfBuzz::HarfBuzz)
+
+            if(MAGNUM_USE_EMSCRIPTEN_PORTS_HARFBUZZ)
+                if(CMAKE_VERSION VERSION_LESS 3.13)
+                    message(FATAL_ERROR "${_component} was compiled against an emscripten-ports version of HarfBuzz but linking to it requires CMake 3.13 at least")
+                endif()
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_COMPILE_OPTIONS "SHELL:-s USE_HARFBUZZ=1")
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "SHELL:-s USE_HARFBUZZ=1")
+            else()
+                find_package(HarfBuzz)
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_LINK_LIBRARIES HarfBuzz::HarfBuzz)
+            endif()
 
         # IcoImporter has no dependencies
 
         # JpegImporter / JpegImageConverter plugin dependencies
         elseif(_component STREQUAL JpegImageConverter OR _component STREQUAL JpegImporter)
-            find_package(JPEG)
-            # Need to handle special cases where both debug and release
-            # libraries are available (in form of debug;A;optimized;B in
-            # JPEG_LIBRARIES), thus appending them one by one
-            if(JPEG_LIBRARY_DEBUG AND JPEG_LIBRARY_RELEASE)
+            # On Emscripten, libjpeg could be taken from ports. If that's the
+            # case, propagate proper compiler flag.
+            if(CORRADE_TARGET_EMSCRIPTEN)
+                list(FIND _magnumPluginsConfigure "#define MAGNUM_USE_EMSCRIPTEN_PORTS_LIBJPEG" _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_LIBJPEG)
+                if(NOT _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_LIBJPEG EQUAL -1)
+                    set(MAGNUM_USE_EMSCRIPTEN_PORTS_LIBJPEG 1)
+                endif()
+            endif()
+
+            if(MAGNUM_USE_EMSCRIPTEN_PORTS_LIBJPEG)
+                if(CMAKE_VERSION VERSION_LESS 3.13)
+                    message(FATAL_ERROR "${_component} was compiled against an emscripten-ports version of libjpeg but linking to it requires CMake 3.13 at least")
+                endif()
                 set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${JPEG_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${JPEG_LIBRARY_DEBUG}>")
+                    INTERFACE_COMPILE_OPTIONS "SHELL:-s USE_LIBJPEG=1")
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "SHELL:-s USE_LIBJPEG=1")
             else()
-                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES ${JPEG_LIBRARIES})
+                find_package(JPEG)
+                # Need to handle special cases where both debug and release
+                # libraries are available (in form of debug;A;optimized;B in
+                # JPEG_LIBRARIES), thus appending them one by one
+                # TODO use imported target when 3.12+ is the minimum
+                if(JPEG_LIBRARY_DEBUG AND JPEG_LIBRARY_RELEASE)
+                    set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                        INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${JPEG_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${JPEG_LIBRARY_DEBUG}>")
+                else()
+                    set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                        INTERFACE_LINK_LIBRARIES ${JPEG_LIBRARIES})
+                endif()
             endif()
 
         # KtxImageConverter has no dependencies
         # KtxImporter has no dependencies
+
+        # LunaSvgImporter plugin dependencies
+        elseif(_component STREQUAL LunaSvgImporter)
+            find_package(lunasvg CONFIG REQUIRED)
+            set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES lunasvg::lunasvg)
 
         # MeshOptimizerSceneConverter plugin dependencies
         elseif(_component STREQUAL MeshOptimizerSceneConverter)
@@ -604,25 +673,44 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
         # No special setup for the OpenDdl library
         # OpenGexImporter has no dependencies
 
+        # PlutoSvgImporter plugin dependencies
+        elseif(_component STREQUAL PlutoSvgImporter)
+            find_package(plutosvg CONFIG REQUIRED)
+            set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES plutosvg::plutosvg)
+
         # PngImageConverter / PngImporter plugin dependencies
         elseif(_component STREQUAL PngImageConverter OR _component STREQUAL PngImporter)
-            find_package(PNG)
-            # Need to handle special cases where both debug and release
-            # libraries are available (in form of debug;A;optimized;B in
-            # PNG_LIBRARIES), thus appending them one by one. Imported target
-            # that would make this obsolete is unfortunately only since CMake
-            # 3.5. We need to link to zlib explicitly in this case as well
-            # (whereas PNG_LIBRARIES contains that already), fortunately zlib
-            # has an imported target in 3.4 already.
-            if(PNG_LIBRARY_DEBUG AND PNG_LIBRARY_RELEASE)
+            # On Emscripten, libpng could be taken from ports. If that's the
+            # case, propagate proper compiler flag.
+            if(CORRADE_TARGET_EMSCRIPTEN)
+                list(FIND _magnumPluginsConfigure "#define MAGNUM_USE_EMSCRIPTEN_PORTS_LIBPNG" _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_LIBPNG)
+                if(NOT _magnumPlugins${_component}_USE_EMSCRIPTEN_PORTS_LIBPNG EQUAL -1)
+                    set(MAGNUM_USE_EMSCRIPTEN_PORTS_LIBPNG 1)
+                endif()
+            endif()
+
+            if(MAGNUM_USE_EMSCRIPTEN_PORTS_LIBPNG)
+                if(CMAKE_VERSION VERSION_LESS 3.13)
+                    message(FATAL_ERROR "${_component} was compiled against an emscripten-ports version of libpng but linking to it requires CMake 3.13 at least")
+                endif()
                 set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES "$<$<NOT:$<CONFIG:Debug>>:${PNG_LIBRARY_RELEASE}>;$<$<CONFIG:Debug>:${PNG_LIBRARY_DEBUG}>" ZLIB::ZLIB)
+                    INTERFACE_COMPILE_OPTIONS "SHELL:-s USE_LIBPNG=1")
+                set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                    INTERFACE_LINK_OPTIONS "SHELL:-s USE_LIBPNG=1")
             else()
+                find_package(PNG)
                 set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
-                    INTERFACE_LINK_LIBRARIES ${PNG_LIBRARIES})
+                    INTERFACE_LINK_LIBRARIES PNG::PNG)
             endif()
 
         # PrimitiveImporter has no dependencies
+
+        # ResvgImporter plugin dependencies
+        elseif(_component STREQUAL ResvgImporter)
+            find_package(Resvg REQUIRED)
+            set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES Resvg::Resvg)
 
         # SpirvToolsShaderConverter plugin dependencies
         elseif(_component STREQUAL SpirvToolsShaderConverter)
@@ -685,6 +773,7 @@ foreach(_component ${MagnumPlugins_FIND_COMPONENTS})
                 INTERFACE_SOURCES ${_MAGNUMPLUGINS_${_COMPONENT}_INCLUDE_DIR}/importStaticPlugin.cpp)
         endif()
 
+        # TODO drop _MAGNUMPLUGINS_LIBRARY_COMPONENTS once OpenDdl is gone
         if(_component IN_LIST _MAGNUMPLUGINS_PLUGIN_COMPONENTS OR _component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS)
             # Link to core Magnum library, add other Magnum dependencies
             set_property(TARGET MagnumPlugins::${_component} APPEND PROPERTY
@@ -716,6 +805,7 @@ if(NOT CMAKE_VERSION VERSION_LESS 3.16)
 
         # If it's not known at all, tell the user -- it might be a new library
         # and an old Find module, or something platform-specific.
+        # TODO drop _MAGNUMPLUGINS_LIBRARY_COMPONENTS once OpenDdl is gone
         if(NOT _component IN_LIST _MAGNUMPLUGINS_LIBRARY_COMPONENTS AND NOT _component IN_LIST _MAGNUMPLUGINS_PLUGIN_COMPONENTS)
             list(APPEND _MAGNUMPLUGINS_REASON_FAILURE_MESSAGE "${_component} is not a known component on this platform.")
         # Otherwise, if it's not among implicitly built components, hint that

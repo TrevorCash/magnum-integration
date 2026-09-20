@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 
@@ -25,6 +25,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#define _MAGNUM_NO_DEPRECATED_OVRINTEGRATION
+
 #include "Context.h"
 
 #include "Magnum/OvrIntegration/Session.h"
@@ -34,6 +36,7 @@
 
 namespace Magnum { namespace OvrIntegration {
 
+CORRADE_IGNORE_DEPRECATED_PUSH
 Debug& operator<<(Debug& debug, const DetectResult value) {
     switch(value) {
         #define _c(value) case DetectResult::value: return debug << "OvrIntegration::DetectResult::" #value;
@@ -73,7 +76,8 @@ bool Context::detect() const {
 }
 
 std::unique_ptr<Session> Context::createSession() {
-    if(!detect()) return {};
+    if(!detect())
+        return {};
 
     ovrSession session;
     ovrGraphicsLuid luid;
@@ -91,5 +95,6 @@ Error Context::error() const {
 
     return err;
 }
+CORRADE_IGNORE_DEPRECATED_POP
 
 }}

@@ -2,7 +2,7 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 
@@ -25,6 +25,8 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#define _MAGNUM_NO_DEPRECATED_OVRINTEGRATION
+
 #include "Compositor.h"
 
 #include "Magnum/OvrIntegration/Integration.h"
@@ -34,6 +36,7 @@
 
 namespace Magnum { namespace OvrIntegration {
 
+CORRADE_IGNORE_DEPRECATED_PUSH
 Layer::Layer(const LayerType type): _layer(), _type(type) {
     _layer.Header.Type = ovrLayerType(Int(_type));
     _layer.Header.Flags = ovrLayerFlag_TextureOriginAtBottomLeft;
@@ -63,7 +66,7 @@ LayerEyeFov& LayerEyeFov::setViewport(const Int eye, const Range2Di& viewport) {
 }
 
 LayerEyeFov& LayerEyeFov::setRenderPoses(const Session& session) {
-    const ovrPosef* poses = session.ovrEyePoses();
+    const ovrPosef* poses = session.ovrEyePoses().data();
     _layer.EyeFov.RenderPose[0] = poses[0];
     _layer.EyeFov.RenderPose[1] = poses[1];
 
@@ -140,5 +143,6 @@ Compositor& Compositor::submitFrame(Session& session) {
 
     return *this;
 }
+CORRADE_IGNORE_DEPRECATED_POP
 
 }}

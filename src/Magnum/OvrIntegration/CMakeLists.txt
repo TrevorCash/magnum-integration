@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #   Copyright © 2015, 2016 Jonathan Hale <squareys@googlemail.com>
 #
@@ -24,6 +24,10 @@
 #   FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 #   DEALINGS IN THE SOFTWARE.
 #
+
+if(NOT MAGNUM_BUILD_DEPRECATED)
+    message(SEND_ERROR "The OvrIntegration library is deprecated. Either remove MAGNUM_WITH_OVRINTEGRATION from your options or rebuild Magnum with MAGNUM_BUILD_DEPRECATED enabled to keep using the library.")
+endif()
 
 # IDE folder in VS, Xcode etc. CMake 3.12+, older versions have only the FOLDER
 # property that would have to be set on each target separately.
@@ -54,10 +58,6 @@ set(MagnumOvrIntegration_HEADERS
     Session.h
 
     visibility.h)
-
-if(MAGNUM_BUILD_DEPRECATED)
-    list(APPEND MagnumOvrIntegration_HEADERS Conversion.h)
-endif()
 
 # OvrIntegration library
 add_library(MagnumOvrIntegration ${SHARED_OR_STATIC}

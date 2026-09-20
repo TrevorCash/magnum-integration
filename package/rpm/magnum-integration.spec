@@ -1,13 +1,13 @@
 Name: magnum-integration
 Version: 2020.06.260.g343680a
-Release: 1
-Summary: Integration libraries for the Magnum C++11/C++14 graphics engine
+Release: 1%{?dist}
+Summary: Integration libraries for the Magnum C++11 graphics engine
 License: MIT
 Source: %{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
 Requires: magnum, bullet, bullet-extras, eigen3
 BuildRequires: cmake, git, gcc-c++, bullet-devel, eigen3-devel, glm-devel
-Source1: https://github.com/ocornut/imgui/archive/v1.88.zip
+Source1: https://github.com/ocornut/imgui/archive/v1.91.0.zip
 
 %description
 Here are integration libraries for the Magnum C++11 graphics engine, providing
@@ -32,12 +32,13 @@ mkdir build && cd build
 cmake ../%{name}-%{version} \
   -DCMAKE_BUILD_TYPE=Release \
   -DCMAKE_INSTALL_PREFIX=%{_prefix} \
-  -DIMGUI_DIR=%{_builddir}/imgui-1.88 \
-  -DMAGNUM_WITH_BULLET=ON \
-  -DMAGNUM_WITH_DART=OFF \
-  -DMAGNUM_WITH_EIGEN=ON \
-  -DMAGNUM_WITH_GLM=ON \
-  -DMAGNUM_WITH_IMGUI=ON
+  -DIMGUI_DIR=%{_builddir}/imgui-1.91.0 \
+  -DMAGNUM_WITH_BULLETINTEGRATION=ON \
+  -DMAGNUM_WITH_DARTINTEGRATION=OFF \
+  -DMAGNUM_WITH_EIGENINTEGRATION=ON \
+  -DMAGNUM_WITH_GLMINTEGRATION=ON \
+  -DMAGNUM_WITH_IMGUIINTEGRATION=ON \
+  -DMAGNUM_WITH_YOGAINTEGRATION=OFF
 
 make %{?_smp_mflags}
 
@@ -53,7 +54,7 @@ strip $RPM_BUILD_ROOT/%{_libdir}/*.so*
 
 %clean
 rm -rf $RPM_BUILD_ROOT
-rm -rf %{_builddir}/imgui-1.88
+rm -rf %{_builddir}/imgui-1.91.0
 
 %files
 %defattr(-,root,root,-)

@@ -2,7 +2,7 @@
 #   This file is part of Magnum.
 #
 #   Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-#               2020, 2021, 2022, 2023, 2024, 2025
+#               2020, 2021, 2022, 2023, 2024, 2025, 2026
 #             Vladimír Vondruš <mosra@centrum.cz>
 #
 #   Permission is hereby granted, free of charge, to any person obtaining a
@@ -30,7 +30,7 @@
 # ImGuiIntegration library and the *.h files will get installed here. The
 # FindImGui.cmake module then will look into include/MagnumExternal/ImGui as
 # a fallback if IMGUI_DIR is not set and no CMake config file is found.
-if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ImGui)
+if(MAGNUM_WITH_IMGUIINTEGRATION AND EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/ImGui)
     install(FILES
         ImGui/imgui.h
         ImGui/imgui_internal.h

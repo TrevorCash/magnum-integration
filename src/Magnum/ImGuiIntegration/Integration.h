@@ -4,9 +4,11 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
+    Copyright © 2022 Hugo Amiard <hugo.amiard@wonderlandengine.com>
+    Copyright © 2026 Pablo Escobar <mail@rvrs.in>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -28,9 +30,19 @@
 */
 
 /** @file
-@brief Conversion of Dear ImGui math types
+@brief Conversion of Dear ImGui types
 
-Provides conversion for the following types:
+Provides conversion for string views (in the [features/string_view](https://github.com/ocornut/imgui/pull/3038)
+branch of ImGui):
+
+| Corrade container type                | ↭ | Equivalent ImGui type        |
+| ------------------------------------- | - | ---------------------------- |
+| @relativeref{Corrade,Containers::String} | ← | @cpp ImStrv @ce (data copy) |
+| @relativeref{Corrade,Containers::String} | → | @cpp ImStrv @ce           |
+| @ref Corrade::Containers::BasicStringView "Containers::StringView" | ⇆ | @cpp ImStrv @ce |
+| @ref Corrade::Containers::BasicStringView "Containers::MutableStringView" | → | @cpp ImStrv @ce |
+
+Provides conversion for the following math types:
 
 | Magnum vector type                | Equivalent ImGui type     |
 | --------------------------------- | ------------------------- |
@@ -58,11 +70,48 @@ Example usage:
 #include "Magnum/ImGuiIntegration/visibility.h" /* defines IMGUI_API */
 
 #include <imgui.h>
+#ifdef IMGUI_HAS_IMSTR
+#include <Corrade/Containers/String.h>
+#include <Corrade/Containers/StringView.h>
+#endif
 #include <Magnum/Types.h>
 #include <Magnum/Math/Vector.h>
 
-/* Don't list (useless) Magnum and Math namespaces without anything else */
+/* Don't list (useless) Corrade and Magnum and Math namespaces without anything else */
 #ifndef DOXYGEN_GENERATING_OUTPUT
+
+/* Currently present only in the features/string_view branch of ImGui */
+#ifdef IMGUI_HAS_IMSTR
+namespace Corrade { namespace Containers { namespace Implementation {
+
+template<> struct StringConverter<ImStrv> {
+    static String from(ImStrv other) {
+        return String{other.Begin, std::size_t(other.length())};
+    }
+    static ImStrv to(const String& other) {
+        return ImStrv{other.begin(), other.end()};
+    }
+};
+
+template<> struct StringViewConverter<const char, ImStrv> {
+    static StringView from(const ImStrv& other) {
+        return StringView{other.Begin, std::size_t(other.length())};
+    }
+    static ImStrv to(StringView other) {
+        return ImStrv{other.begin(), other.end()};
+    }
+};
+
+/* There's no mutable variant of ImStrv, so this goes just one direction */
+template<> struct StringViewConverter<char, ImStrv> {
+    static ImStrv to(MutableStringView other) {
+        return ImStrv{other.begin(), other.end()};
+    }
+};
+
+}}}
+#endif
+
 namespace Magnum { namespace Math { namespace Implementation {
 
 /* ImVec2 */

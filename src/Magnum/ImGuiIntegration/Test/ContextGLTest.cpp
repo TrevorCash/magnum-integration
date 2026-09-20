@@ -2,10 +2,11 @@
     This file is part of Magnum.
 
     Copyright © 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019,
-                2020, 2021, 2022, 2023, 2024, 2025
+                2020, 2021, 2022, 2023, 2024, 2025, 2026
               Vladimír Vondruš <mosra@centrum.cz>
     Copyright © 2018 Jonathan Hale <squareys@googlemail.com>
-    Copyright © 2022, 2024 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2022, 2024, 2025, 2026 Pablo Escobar <mail@rvrs.in>
+    Copyright © 2023 Jordan Peck <jordan.me2@gmail.com>
 
     Permission is hereby granted, free of charge, to any person obtaining a
     copy of this software and associated documentation files (the "Software"),
@@ -26,11 +27,13 @@
     DEALINGS IN THE SOFTWARE.
 */
 
+#include <cstring> /* std::strcpy() */
 #include <limits>
 #include <Corrade/Containers/StridedArrayView.h>
 #include <Corrade/Containers/String.h>
 #include <Corrade/PluginManager/Manager.h>
 #include <Corrade/TestSuite/Compare/Container.h>
+#include <Corrade/TestSuite/Compare/String.h>
 #include <Corrade/Utility/System.h>
 #include <Corrade/Utility/Path.h>
 #include <Magnum/Magnum.h>
@@ -98,11 +101,7 @@ struct PointerEvent: public InputEvent {
     Vector2 _position;
     bool _primary;
 
-    /* Used only with ImGui 1.89.5+, compile away on older versions to avoid an
-       unused member warning on Clang */
-    #if IMGUI_VERSION_NUM >= 18948
     PointerEventSource source() const { return _source; }
-    #endif
     Pointer pointer() const { return _pointer; }
     Vector2 position() const { return _position; }
     bool isPrimary() const { return _primary; }
@@ -117,11 +116,7 @@ struct PointerMoveEvent: public InputEvent {
     Vector2 _position;
     bool _primary;
 
-    /* Used only with ImGui 1.89.5+, compile away on older versions to avoid an
-       unused member warning on Clang */
-    #if IMGUI_VERSION_NUM >= 18948
     PointerEventSource source() const { return _source; }
-    #endif
     Containers::Optional<Pointer> pointer() const { return _pointer; }
     Pointers pointers() const { return _pointers; }
     Vector2 position() const { return _position; }
@@ -168,6 +163,10 @@ struct MouseScrollEvent: public InputEvent {
 };
 #endif
 
+/* This is only used in the updateCursor() test, but cannot be a local type
+   there because Implementation::Optional*Cursor defines fallback values for
+   cursor types that don't exist and it doesn't work with local types on GCC,
+   leading to "error: ‘Implementation::OptionalResizeAllCursor<...>::Cursor’, declared using local type ‘Magnum::ImGuiIntegration::Test::{anonymous}::ContextGLTest::updateCursor()::Application’, is used but never defined" */
 struct Application {
     enum class Cursor {
         Arrow,
@@ -180,8 +179,11 @@ struct Application {
         None = 999
     };
 
-    void setCursor(Cursor cursor) { currentCursor = cursor; }
     Cursor currentCursor = Cursor::None;
+    Vector2i mousePos;
+
+    void setCursor(Cursor cursor) { currentCursor = cursor; }
+    void warpCursor(const Vector2i& pos) { mousePos = pos; }
 };
 
 struct KeyEvent: public InputEvent {
@@ -229,6 +231,9 @@ struct TextInputEvent {
 struct ContextGLTest: GL::OpenGLTester {
     explicit ContextGLTest();
 
+    void drawSetup();
+    void drawTeardown();
+
     void construct();
     void constructExistingContext();
     void constructExistingContextAddFont();
@@ -257,14 +262,21 @@ struct ContextGLTest: GL::OpenGLTester {
     void textInput();
     void updateCursor();
 
-    void multipleContexts();
+    void clipboardNoOp();
+    void clipboard();
+    void clipboardOwnedString();
+    template<class T> void clipboardMultipleContexts();
 
-    void drawSetup();
-    void drawTeardown();
+    void multipleContexts();
 
     void draw();
     void drawCallback();
     void drawTexture();
+    void drawText();
+    void drawTextDpiScaled();
+    #if IMGUI_VERSION_NUM >= 19200
+    void drawTextSingleChannel();
+    #endif
     void drawScissor();
     void drawVertexOffset();
     void drawIndexOffset();
@@ -279,13 +291,17 @@ struct ContextGLTest: GL::OpenGLTester {
 ContextGLTest::ContextGLTest() {
     addTests({&ContextGLTest::construct,
               &ContextGLTest::constructExistingContext,
-              &ContextGLTest::constructExistingContextAddFont,
-              &ContextGLTest::constructMove,
-              &ContextGLTest::moveAssignEmpty,
+              &ContextGLTest::constructExistingContextAddFont});
 
-              &ContextGLTest::release,
+    addTests({&ContextGLTest::constructMove},
+        &ContextGLTest::drawSetup,
+        &ContextGLTest::drawTeardown);
 
-              &ContextGLTest::frame,
+    addTests({&ContextGLTest::moveAssignEmpty,
+
+              &ContextGLTest::release});
+
+    addTests({&ContextGLTest::frame,
               &ContextGLTest::frameZeroSize,
 
               &ContextGLTest::relayout,
@@ -302,14 +318,28 @@ ContextGLTest::ContextGLTest() {
               &ContextGLTest::mouseInputTooFast,
               #endif
               &ContextGLTest::keyInput,
-              &ContextGLTest::textInput,
-              &ContextGLTest::updateCursor,
+              &ContextGLTest::textInput},
+        &ContextGLTest::drawSetup,
+        &ContextGLTest::drawTeardown);
 
-              &ContextGLTest::multipleContexts});
+    addTests({&ContextGLTest::updateCursor,
 
-    addTests({&ContextGLTest::draw,
+              &ContextGLTest::clipboardNoOp,
+              &ContextGLTest::clipboard,
+              &ContextGLTest::clipboardMultipleContexts<Containers::StringView>,
+              &ContextGLTest::clipboardMultipleContexts<Containers::String>,
+              &ContextGLTest::clipboardOwnedString});
+
+    addTests({&ContextGLTest::multipleContexts,
+
+              &ContextGLTest::draw,
               &ContextGLTest::drawCallback,
               &ContextGLTest::drawTexture,
+              &ContextGLTest::drawText,
+              &ContextGLTest::drawTextDpiScaled,
+              #if IMGUI_VERSION_NUM >= 19200
+              &ContextGLTest::drawTextSingleChannel,
+              #endif
               &ContextGLTest::drawScissor,
               &ContextGLTest::drawVertexOffset,
               &ContextGLTest::drawIndexOffset},
@@ -325,6 +355,34 @@ ContextGLTest::ContextGLTest() {
     GL::Renderer::enable(GL::Renderer::Feature::ScissorTest);
 }
 
+constexpr Color4 DrawClearColor{0.5f, 0.5f, 1.0f, 1.0f};
+
+void ContextGLTest::drawSetup() {
+    GL::Renderer::setClearColor(DrawClearColor);
+
+    constexpr Vector2i DrawSize{64, 64};
+
+    _color = GL::Renderbuffer{};
+    _color.setStorage(
+        #if !defined(MAGNUM_TARGET_GLES2) || !defined(MAGNUM_TARGET_WEBGL)
+        GL::RenderbufferFormat::RGBA8,
+        #else
+        GL::RenderbufferFormat::RGBA4,
+        #endif
+        DrawSize);
+
+    _framebuffer = GL::Framebuffer{{{}, DrawSize}};
+    _framebuffer
+        .attachRenderbuffer(GL::Framebuffer::ColorAttachment{0}, _color)
+        .clear(GL::FramebufferClear::Color)
+        .bind();
+}
+
+void ContextGLTest::drawTeardown() {
+    _framebuffer = GL::Framebuffer{NoCreate};
+    _color = GL::Renderbuffer{NoCreate};
+}
+
 void ContextGLTest::construct() {
     {
         Context c{{}};
@@ -332,8 +390,14 @@ void ContextGLTest::construct() {
         CORRADE_VERIFY(c.context());
         CORRADE_COMPARE(c.context(), ImGui::GetCurrentContext());
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+        #if IMGUI_VERSION_NUM >= 19200
+        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+        #else
+        /* On older versions we manually scale the font for supersampling */
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+        #endif
 
         MAGNUM_VERIFY_NO_GL_ERROR();
     }
@@ -359,8 +423,13 @@ void ContextGLTest::constructExistingContext() {
         /* No user-supplied font even though we used a custom context, add
            the default one  */
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+        #if IMGUI_VERSION_NUM >= 19200
+        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+        #else
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+        #endif
     }
 
     MAGNUM_VERIFY_NO_GL_ERROR();
@@ -383,8 +452,13 @@ void ContextGLTest::constructExistingContextAddFont() {
         /* The user-supplied font should not get overriden, even though it's
            the same */
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
-        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px"_s);
+        /* ImGui < 1.92 adds a ", 13px" suffix */
+        CORRADE_COMPARE_AS(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s, TestSuite::Compare::StringHasPrefix);
+        #if IMGUI_VERSION_NUM >= 19200
+        CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+        #else
         CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+        #endif
     }
 
     MAGNUM_VERIFY_NO_GL_ERROR();
@@ -405,7 +479,9 @@ void ContextGLTest::constructMove() {
     /* The texture ID used to be a pointer that had to be relocated. Now it's
        just the underlying OpenGL ID that doesn't need to be, nevertheless
        let's still check that it's what is expected. */
+    #if IMGUI_VERSION_NUM < 19200
     CORRADE_COMPARE(textureId(b.atlasTexture()), ImGui::GetIO().Fonts->TexID);
+    #endif
     CORRADE_COMPARE(ImGui::GetCurrentContext(), context);
 
     Context c{{}};
@@ -417,9 +493,13 @@ void ContextGLTest::constructMove() {
     /* The texture ID used to be a pointer that had to be relocated. Now it's
        just the underlying OpenGL ID that doesn't need to be, nevertheless
        let's still check that it's what is expected. */
+    #if IMGUI_VERSION_NUM < 19200
     CORRADE_COMPARE(textureId(b.atlasTexture()), ImGui::GetIO().Fonts->TexID);
+    #endif
     ImGui::SetCurrentContext(c.context());
+    #if IMGUI_VERSION_NUM < 19200
     CORRADE_COMPARE(textureId(c.atlasTexture()), ImGui::GetIO().Fonts->TexID);
+    #endif
 
     /* This should not blow up */
     ImGui::SetCurrentContext(cContext);
@@ -528,14 +608,24 @@ void ContextGLTest::relayout() {
     MAGNUM_VERIFY_NO_GL_ERROR();
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+    #else
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+    #endif
 
     c.relayout({200, 200});
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+    #else
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+    #endif
 
     Utility::System::sleep(1);
 
@@ -557,14 +647,27 @@ void ContextGLTest::relayoutDpiChange() {
     MAGNUM_VERIFY_NO_GL_ERROR();
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+    #else
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+    #endif
 
     c.relayout({200, 200}, {70, 70}, {400, 400});
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s);
+    /* With dynamic font rasterization on 1.92 and up, the LegacySize is simply
+       the logical size it was originally added with */
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+    #else
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px [SCALED]"_s);
+    /* On older versions we manually scale up the font for supersampling */
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 26.0f); /* 2x */
+    #endif
 
     Utility::System::sleep(1);
 
@@ -584,8 +687,13 @@ void ContextGLTest::relayoutDpiChangeCustomFont() {
     Context c{*ImGui::GetCurrentContext(), {400, 400}};
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
-    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px"_s);
+    /* ImGui < 1.92 adds a ", 13px" suffix */
+    CORRADE_COMPARE_AS(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s, TestSuite::Compare::StringHasPrefix);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f);
+    #else
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+    #endif
 
     /* Again a dummy frame first */
     c.newFrame();
@@ -594,8 +702,13 @@ void ContextGLTest::relayoutDpiChangeCustomFont() {
     MAGNUM_VERIFY_NO_GL_ERROR();
 
     CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts.size(), 1);
-    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf, 13px"_s);
-    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f); /*same */
+    /* ImGui < 1.92 adds a ", 13px" suffix */
+    CORRADE_COMPARE_AS(ImGui::GetIO().Fonts->Fonts[0]->GetDebugName(), "ProggyClean.ttf"_s, TestSuite::Compare::StringHasPrefix);
+    #if IMGUI_VERSION_NUM >= 19200
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->LegacySize, 13.0f); /* same */
+    #else
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->Fonts[0]->FontSize, 13.0f);
+    #endif
 
     c.relayout({200, 200}, {70, 70}, {400, 400});
 
@@ -679,9 +792,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Left));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2{ImGui::GetMousePos()}, (Vector2{1.0f, 2.0f}));
     c.drawFrame();
@@ -690,9 +801,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Right));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{3.0f, 4.0f}));
     c.drawFrame();
@@ -701,9 +810,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Middle));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{5.0f, 6.0f}));
     c.drawFrame();
@@ -712,9 +819,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Right));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{3.0f, 4.0f}));
     c.drawFrame();
@@ -723,9 +828,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Left));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{1.0f, 2.0f}));
     c.drawFrame();
@@ -734,9 +837,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Middle));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{5.0f, 6.0f}));
     c.drawFrame();
@@ -752,9 +853,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Left));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_TouchScreen);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2{ImGui::GetMousePos()}, (Vector2{5.0f, 3.0f}));
     c.drawFrame();
@@ -763,9 +862,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Left));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Pen);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{2.0f, 4.0f}));
     c.drawFrame();
@@ -778,9 +875,7 @@ void ContextGLTest::pointerInput() {
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Left));
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Middle));
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Right));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{1.0f, 2.0f}));
     c.drawFrame();
@@ -797,9 +892,7 @@ void ContextGLTest::pointerInput() {
     Utility::System::sleep(1);
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Middle));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_TouchScreen);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{9.0f, 1.0f}));
     c.drawFrame();
@@ -811,9 +904,7 @@ void ContextGLTest::pointerInput() {
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Left));
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Middle));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Pen);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{8.0f, 0.0f}));
     c.drawFrame();
@@ -825,9 +916,7 @@ void ContextGLTest::pointerInput() {
     c.newFrame();
     CORRADE_VERIFY(ImGui::IsMouseDown(ImGuiMouseButton_Left));
     CORRADE_VERIFY(!ImGui::IsMouseDown(ImGuiMouseButton_Middle));
-    #if IMGUI_VERSION_NUM >= 18948
     CORRADE_COMPARE(ImGui::GetIO().MouseSource, ImGuiMouseSource_Mouse);
-    #endif
     /* ImGui floors the positions internally, so the fraction gets lost */
     CORRADE_COMPARE(Vector2(ImGui::GetMousePos()), (Vector2{9.0f, 1.0f}));
     c.drawFrame();
@@ -1087,7 +1176,7 @@ void ContextGLTest::textInput() {
 }
 
 void ContextGLTest::updateCursor() {
-    Context c{{}};
+    Context c{{200, 200}, {400, 400}, {300, 300}};
 
     Application app;
 
@@ -1115,6 +1204,123 @@ void ContextGLTest::updateCursor() {
     ImGui::SetMouseCursor(ImGuiMouseCursor_ResizeNESW);
     c.updateApplicationCursor(app);
     CORRADE_VERIFY(app.currentCursor == Application::Cursor::Arrow);
+
+    /* Change to imgui mouse pos and mark it as changed
+       Account for 2x DPI scaling in equality check */
+    ImGuiIO& io = ImGui::GetIO();
+    io.MousePos = ImVec2(10, 15);
+    io.WantSetMousePos = true;
+    c.updateApplicationCursor(app);
+    CORRADE_VERIFY(app.mousePos == Vector2i(20, 30));
+
+    /* Change to imgui mouse pos without marking it as changed */
+    io.MousePos = ImVec2(50, 0);
+    io.WantSetMousePos = false;
+    c.updateApplicationCursor(app);
+    CORRADE_VERIFY(app.mousePos == Vector2i(20, 30));
+
+    /* Mark mouse pos changed */
+    io.WantSetMousePos = true;
+    c.updateApplicationCursor(app);
+    CORRADE_VERIFY(app.mousePos == Vector2i(100, 0));
+}
+
+void ContextGLTest::clipboardNoOp() {
+    struct {
+        /* (nothing) */
+    } app;
+
+    Context c{{}};
+
+    /* The clipboard gets stored just within ImGui itself */
+    ImGui::SetClipboardText("hello");
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "hello"_s);
+
+    c.connectApplicationClipboard(app);
+
+    /* The clipboard is still stored just within ImGui itself. Supplying null
+       functions would mean the clipboard doesn't work at all, which isn't
+       desirable. */
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "hello"_s);
+    ImGui::SetClipboardText("yay!");
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "yay!"_s);
+}
+
+void ContextGLTest::clipboard() {
+    struct {
+        Containers::StringView clipboardText() { return clipboard; }
+        void setClipboardText(Containers::StringView text) { clipboard = text; }
+
+        Containers::String clipboard = "yes?!";
+    } app;
+
+    Context c{{}};
+    c.connectApplicationClipboard(app);
+
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "yes?!"_s);
+
+    ImGui::SetClipboardText("hello");
+    CORRADE_COMPARE(app.clipboard, "hello"_s);
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "hello"_s);
+}
+
+void ContextGLTest::clipboardOwnedString() {
+    struct {
+        Containers::String clipboardText() {
+            return clipboard + "!!";
+        }
+        void setClipboardText(Containers::StringView text) { clipboard = text; }
+
+        Containers::String clipboard = "yes?";
+    } app;
+
+    Context c{{}};
+    c.connectApplicationClipboard(app);
+
+    /* This shouldn't point to a temporary string returned by the API, but
+       should be saved and kept until next time instead */
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "yes?!!"_s);
+
+    /* Setting a different clipboard text */
+    ImGui::SetClipboardText("hello");
+    CORRADE_COMPARE(app.clipboard, "hello"_s);
+
+    /* This again returns a temporary string that gets saved */
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "hello!!"_s);
+}
+
+template<class T> void ContextGLTest::clipboardMultipleContexts() {
+    setTestCaseTemplateName(std::is_same<T, Containers::String>::value ? "Containers::String" : "Containers::StringView");
+
+    struct {
+        T clipboardText() { return clipboard; }
+        void setClipboardText(Containers::StringView text) { clipboard = text; }
+
+        Containers::String clipboard;
+    } app1, app2;
+
+    Context c1{{}};
+    Context c2{{}};
+
+    /* The current context shouldn't get silently changed after calling this
+       function */
+    CORRADE_COMPARE(ImGui::GetCurrentContext(), c2.context());
+    c1.connectApplicationClipboard(app1);
+    CORRADE_COMPARE(ImGui::GetCurrentContext(), c2.context());
+    c2.connectApplicationClipboard(app2);
+    CORRADE_COMPARE(ImGui::GetCurrentContext(), c2.context());
+
+    ImGui::SetCurrentContext(c1.context());
+    ImGui::SetClipboardText("hello");
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "hello"_s);
+    CORRADE_COMPARE(app1.clipboard, "hello"_s);
+    CORRADE_COMPARE(app2.clipboard, ""_s);
+
+    ImGui::SetCurrentContext(c2.context());
+    ImGui::SetClipboardText("goodbye");
+    CORRADE_COMPARE(ImGui::GetClipboardText(), "goodbye"_s);
+    CORRADE_COMPARE(app1.clipboard, "hello"_s);
+    CORRADE_COMPARE(app2.clipboard, "goodbye"_s);
 }
 
 void ContextGLTest::multipleContexts() {
@@ -1204,34 +1410,6 @@ void ContextGLTest::multipleContexts() {
     #endif
 }
 
-constexpr Color4 DrawClearColor{0.5f, 0.5f, 1.0f, 1.0f};
-
-void ContextGLTest::drawSetup() {
-    GL::Renderer::setClearColor(DrawClearColor);
-
-    constexpr Vector2i DrawSize{64, 64};
-
-    _color = GL::Renderbuffer{};
-    _color.setStorage(
-        #if !defined(MAGNUM_TARGET_GLES2) || !defined(MAGNUM_TARGET_WEBGL)
-        GL::RenderbufferFormat::RGBA8,
-        #else
-        GL::RenderbufferFormat::RGBA4,
-        #endif
-        DrawSize);
-
-    _framebuffer = GL::Framebuffer{{{}, DrawSize}};
-    _framebuffer
-        .attachRenderbuffer(GL::Framebuffer::ColorAttachment{0}, _color)
-        .clear(GL::FramebufferClear::Color)
-        .bind();
-}
-
-void ContextGLTest::drawTeardown() {
-    _framebuffer = GL::Framebuffer{NoCreate};
-    _color = GL::Renderbuffer{NoCreate};
-}
-
 void ContextGLTest::draw() {
     Context c{{200, 200}, {70, 70}, _framebuffer.viewport().size()};
 
@@ -1316,8 +1494,13 @@ void ContextGLTest::drawCallback() {
     drawList->AddCallback(data.callback, &data);
     drawList->PushClipRect({}, data.rectSizes[1]);
     drawList->AddCallback(data.callback, &data);
-    /* Special reset state callback should be handled (and not called) */
+    /* Special reset state callback should be handled and not called on older
+       versions. On newer versions AddCallback() asserts if the callback is
+       nullptr, and we set ImGuiPlatformIO::DrawCallback_ResetRenderState to
+       nullptr, so nothing to test there. */
+    #if IMGUI_VERSION_NUM < 19280
     drawList->AddCallback(ImDrawCallback_ResetRenderState, &data);
+    #endif
     /* Different callbacks should work */
     drawList->AddCallback([](const ImDrawList*, const ImDrawCmd* cmd) {
         auto* callbackData = static_cast<CallbackData*>(cmd->UserCallbackData);
@@ -1393,6 +1576,181 @@ void ContextGLTest::drawTexture() {
         Utility::Path::join(IMGUIINTEGRATION_TEST_DIR, "ContextTestFiles/draw-texture.png"),
         (DebugTools::CompareImageToFile{_manager, 1.0f, 0.5f}));
 }
+
+void ContextGLTest::drawText() {
+    Context c{_framebuffer.viewport().size()};
+
+    /* Scale up default font so large text output is not a complete blurry
+       mess. On 1.92 and up rasterization happens dynamically, so no scaling
+       needed for sharp text. */
+    constexpr float FontSize = 13.0f;
+    constexpr float FontDrawSize = 3.0f*FontSize;
+
+    ImGui::GetIO().Fonts->Clear();
+    ImFontConfig cfg;
+    std::strcpy(cfg.Name, "ProggyClean.ttf, custom size");
+    #if IMGUI_VERSION_NUM < 19200
+    cfg.SizePixels = FontDrawSize;
+    #else
+    cfg.SizePixels = FontSize;
+    #endif
+    ImGui::GetIO().Fonts->AddFontDefault(&cfg);
+
+    #if IMGUI_VERSION_NUM < 19200
+    /* Force font rasterization */
+    c.relayout(_framebuffer.viewport().size());
+    #endif
+
+    /* ImGui doesn't draw anything the first frame */
+    c.newFrame();
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    Utility::System::sleep(1);
+
+    c.newFrame();
+
+    /* Last drawlist that gets rendered, covers the entire display */
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2& size = ImGui::GetIO().DisplaySize;
+
+    drawList->AddRectFilled({size.x*0.1f, size.y*0.2f}, {size.x*0.9f, size.y*0.8f},
+        IM_COL32(255, 128, 128, 255));
+    drawList->AddText(nullptr, FontDrawSize,
+        {size.x*0.3f, size.y*0.3f}, IM_COL32(255, 255, 0, 200), "ABC");
+
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    /* Catch also ABI and interface mismatch errors */
+    if(!(_manager.load("AnyImageImporter") & PluginManager::LoadState::Loaded) ||
+       !(_manager.load("PngImporter") & PluginManager::LoadState::Loaded))
+        CORRADE_SKIP("AnyImageImporter / PngImporter plugin can't be loaded.");
+
+    /* There are a few (< 10) pixels with higher delta on older ImGui versions
+       due to slight differences in font rasterization/atlassing. */
+    #if IMGUI_VERSION_NUM < 19200
+    constexpr Float MaxThreshold = 35.0f;
+    #else
+    constexpr Float MaxThreshold = 3.0f;
+    #endif
+    constexpr Float MeanThreshold = 0.4f;
+
+    CORRADE_COMPARE_WITH(
+        /* Dropping the alpha channel, as it's always 1.0 */
+        Containers::arrayCast<Color3ub>(_framebuffer.read(_framebuffer.viewport(), {PixelFormat::RGBA8Unorm}).pixels<Color4ub>()),
+        Utility::Path::join(IMGUIINTEGRATION_TEST_DIR, "ContextTestFiles/draw-text.png"),
+        (DebugTools::CompareImageToFile{_manager, MaxThreshold, MeanThreshold}));
+}
+
+void ContextGLTest::drawTextDpiScaled() {
+    /* Like drawText(), but with 2x DPI scale */
+    Context c{{32, 32}, {32, 32}, _framebuffer.viewport().size()};
+
+    /* ImGui doesn't draw anything the first frame */
+    c.newFrame();
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    Utility::System::sleep(1);
+
+    c.newFrame();
+
+    /* Last drawlist that gets rendered, covers the entire display */
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2& size = ImGui::GetIO().DisplaySize;
+
+    drawList->AddRectFilled({size.x*0.1f, size.y*0.2f}, {size.x*0.9f, size.y*0.8f},
+        IM_COL32(255, 128, 128, 255));
+    /* Use default font at default size */
+    drawList->AddText(nullptr, 0.0f,
+        {size.x*0.15f, size.y*0.3f}, IM_COL32(255, 255, 0, 200), "DPI");
+
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    /* Catch also ABI and interface mismatch errors */
+    if(!(_manager.load("AnyImageImporter") & PluginManager::LoadState::Loaded) ||
+       !(_manager.load("PngImporter") & PluginManager::LoadState::Loaded))
+        CORRADE_SKIP("AnyImageImporter / PngImporter plugin can't be loaded.");
+
+    /* There are a few (< 10) pixels with higher delta on older ImGui versions
+       due to slight differences in font rasterization/atlassing */
+    #if IMGUI_VERSION_NUM < 19200
+    constexpr Float MaxThreshold = 67.0f;
+    constexpr Float MeanThreshold = 1.9f;
+    #else
+    constexpr Float MaxThreshold = 3.0f;
+    constexpr Float MeanThreshold = 0.4f;
+    #endif
+
+    CORRADE_COMPARE_WITH(
+        /* Dropping the alpha channel, as it's always 1.0 */
+        Containers::arrayCast<Color3ub>(_framebuffer.read(_framebuffer.viewport(), {PixelFormat::RGBA8Unorm}).pixels<Color4ub>()),
+        Utility::Path::join(IMGUIINTEGRATION_TEST_DIR, "ContextTestFiles/draw-text-dpi-scaled.png"),
+        (DebugTools::CompareImageToFile{_manager, MaxThreshold, MeanThreshold}));
+}
+
+#if IMGUI_VERSION_NUM >= 19200
+void ContextGLTest::drawTextSingleChannel() {
+    #if defined(MAGNUM_TARGET_GLES2) || defined(MAGNUM_TARGET_WEBGL)
+    CORRADE_SKIP("Single-channel textures not supported in OpenGL ES 2.0 or WebGL");
+    #endif
+
+    Context c{_framebuffer.viewport().size()};
+
+    /* Remove default-created RGBA texture */
+    ImGui::GetIO().Fonts->ClearFonts();
+
+    /* Request atlas with single-channel texture */
+    ImGui::GetIO().Fonts->TexDesiredFormat = ImTextureFormat_Alpha8;
+
+    /* Ensure font atlas gets built. Seems to require two frames. */
+    c.newFrame();
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    c.newFrame();
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    CORRADE_COMPARE(ImGui::GetIO().Fonts->TexData->Format, ImTextureFormat_Alpha8);
+
+    Utility::System::sleep(1);
+
+    c.newFrame();
+
+    /* Last drawlist that gets rendered, covers the entire display */
+    ImDrawList* drawList = ImGui::GetForegroundDrawList();
+    const ImVec2& size = ImGui::GetIO().DisplaySize;
+
+    drawList->AddRectFilled({size.x*0.1f, size.y*0.2f}, {size.x*0.9f, size.y*0.8f},
+        IM_COL32(255, 128, 128, 255));
+    drawList->AddText(nullptr, 0.0f,
+        {size.x*0.3f, size.y*0.3f}, IM_COL32(255, 255, 0, 200), "Alpha");
+
+    c.drawFrame();
+
+    MAGNUM_VERIFY_NO_GL_ERROR();
+
+    /* Catch also ABI and interface mismatch errors */
+    if(!(_manager.load("AnyImageImporter") & PluginManager::LoadState::Loaded) ||
+       !(_manager.load("PngImporter") & PluginManager::LoadState::Loaded))
+        CORRADE_SKIP("AnyImageImporter / PngImporter plugin can't be loaded.");
+
+    CORRADE_COMPARE_WITH(
+        /* Dropping the alpha channel, as it's always 1.0 */
+        Containers::arrayCast<Color3ub>(_framebuffer.read(_framebuffer.viewport(), {PixelFormat::RGBA8Unorm}).pixels<Color4ub>()),
+        Utility::Path::join(IMGUIINTEGRATION_TEST_DIR, "ContextTestFiles/draw-text-single-channel.png"),
+        (DebugTools::CompareImageToFile{_manager, 3.0f, 0.4f}));
+}
+#endif
 
 void ContextGLTest::drawScissor() {
     Context c{{200, 200}, {70, 70}, _framebuffer.viewport().size()};
